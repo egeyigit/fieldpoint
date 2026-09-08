@@ -69,6 +69,10 @@ button:hover, a.ghost:hover { border-color: var(--muted); }
 .site-item .title { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 600; }
 .site-item .edit-btn { padding: 1px 7px; font-size: 11px; font-weight: 500; }
 .site-item .sub { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.site-item .select-box { width: auto; margin: 0; }
+.select-all { font-size: 12px; color: var(--muted); }
+.select-all input { width: auto; margin: 0; }
+.bulk-bar { padding: 6px 8px; border: 1px solid var(--green-dim); border-radius: var(--radius); background: var(--surface-2); }
 .badge { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
 .badge.active { color: var(--green); border-color: var(--green-dim); }
 .badge.planned { color: var(--blue); }

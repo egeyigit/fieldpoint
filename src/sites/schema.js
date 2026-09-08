@@ -34,6 +34,19 @@ export const updateSiteSchema = z
 
 export const siteIdSchema = z.object({ id: z.coerce.number().int().positive() });
 
+const MAX_BULK_IDS = 1000;
+
+export const bulkUpdateSchema = z.object({
+  ids: z
+    .array(z.coerce.number().int().positive())
+    .min(1, 'Select at least one site')
+    .max(MAX_BULK_IDS),
+  changes: z
+    .object({ ...fields, delete: z.boolean() })
+    .partial()
+    .refine((body) => Object.keys(body).length > 0, 'Nothing to change'),
+});
+
 export const listSitesSchema = z.object({
   q: z.string().trim().max(MAX_SEARCH).optional(),
   category: z.enum(SITE_CATEGORIES).optional(),

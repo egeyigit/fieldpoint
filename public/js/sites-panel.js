@@ -13,6 +13,7 @@ export function createSitesPanel({ mapView, currentUser }) {
   const errorBox = $('#site-error');
   let sites = [];
   let selectedId = null;
+  const selected = new Set();
 
   fillSelect($('#filter-category'), Object.entries(CATEGORIES).map(([key, value]) => [key, value.label]), { keepFirst: true });
   fillSelect($('#filter-status'), Object.entries(STATUSES), { keepFirst: true });
@@ -30,9 +31,23 @@ export function createSitesPanel({ mapView, currentUser }) {
     return params;
   }
 
+  function updateBulkBar() {
+    const bar = $('#bulk-bar');
+    bar.hidden = selected.size === 0;
+    $('#bulk-count').textContent = `${selected.size} selected`;
+    $('#bulk-delete-btn').hidden = currentUser.role !== 'admin';
+    const all = $('#select-all');
+    all.checked = sites.length > 0 && selected.size === sites.length;
+    all.indeterminate = selected.size > 0 && selected.size < sites.length;
+  }
+
   function renderList() {
     list.replaceChildren();
+    for (const id of [...selected]) {
+      if (!sites.some((site) => site.id === id)) selected.delete(id);
+    }
     $('#site-count').textContent = `${sites.length} site${sites.length === 1 ? '' : 's'}`;
+    updateBulkBar();
     $('#export-btn').href = `/api/sites/export.csv?${new URLSearchParams(currentFilters())}`;
     if (sites.length === 0) {
       const empty = document.createElement('li');
@@ -47,8 +62,22 @@ export function createSitesPanel({ mapView, currentUser }) {
       item.dataset.id = site.id;
       const title = document.createElement('div');
       title.className = 'title';
+      const left = document.createElement('span');
+      left.className = 'row gap';
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.className = 'select-box';
+      check.checked = selected.has(site.id);
+      check.setAttribute('aria-label', `Select ${site.name}`);
+      check.addEventListener('click', (event) => event.stopPropagation());
+      check.addEventListener('change', () => {
+        if (check.checked) selected.add(site.id);
+        else selected.delete(site.id);
+        updateBulkBar();
+      });
       const name = document.createElement('span');
       name.textContent = site.name;
+      left.append(check, name);
       const badge = document.createElement('span');
       badge.className = `badge ${site.status}`;
       badge.textContent = STATUSES[site.status] ?? site.status;
@@ -64,7 +93,7 @@ export function createSitesPanel({ mapView, currentUser }) {
       const right = document.createElement('span');
       right.className = 'row gap';
       right.append(badge, edit);
-      title.append(name, right);
+      title.append(left, right);
       const sub = document.createElement('div');
       sub.className = 'sub';
       sub.textContent = `${CATEGORIES[site.category]?.label ?? site.category} · ${site.address || `${site.lat.toFixed(4)}, ${site.lng.toFixed(4)}`}`;
@@ -170,11 +199,55 @@ export function createSitesPanel({ mapView, currentUser }) {
     }
   }
 
+  async function applyBulk(changes, confirmMessage) {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    if (confirmMessage && !window.confirm(confirmMessage)) return;
+    try {
+      await api.bulkUpdateSites(ids, changes);
+      selected.clear();
+      toast(`Updated ${ids.length} site${ids.length === 1 ? '' : 's'}`);
+      await refresh();
+    } catch (error) {
+      toast(error.message, true);
+    }
+  }
+
+  function bulkStatus() {
+    const status = window.prompt(`Set status (${Object.keys(STATUSES).join(', ')})`);
+    if (status && STATUSES[status]) applyBulk({ status });
+    else if (status) toast('Unknown status', true);
+  }
+
+  function bulkCategory() {
+    const category = window.prompt(`Set category (${Object.keys(CATEGORIES).join(', ')})`);
+    if (category && CATEGORIES[category]) applyBulk({ category });
+    else if (category) toast('Unknown category', true);
+  }
+
+  function bulkAssign() {
+    const notes = window.prompt('Assignment note for selected sites');
+    if (notes !== null) applyBulk({ notes });
+  }
+
+  function toggleSelectAll(event) {
+    selected.clear();
+    if (event.target.checked) for (const site of sites) selected.add(site.id);
+    renderList();
+  }
+
   form.addEventListener('submit', submitEditor);
   $('#cancel-btn').addEventListener('click', () => dialog.close());
   $('#delete-btn').addEventListener('click', deleteCurrent);
   $('#geocode-btn').addEventListener('click', locateAddress);
   $('#add-btn').addEventListener('click', () => openEditor());
+  $('#select-all').addEventListener('change', toggleSelectAll);
+  $('#bulk-status-btn').addEventListener('click', bulkStatus);
+  $('#bulk-category-btn').addEventListener('click', bulkCategory);
+  $('#bulk-assign-btn').addEventListener('click', bulkAssign);
+  $('#bulk-delete-btn').addEventListener('click', () =>
+    applyBulk({ delete: true }, `Delete ${selected.size} selected site(s)? This cannot be undone.`),
+  );
 
   return { refresh, select, openEditor };
 }

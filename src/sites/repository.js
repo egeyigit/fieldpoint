@@ -36,6 +36,7 @@ export function createSiteRepository(db) {
   }
 
   return {
+    db,
     findById: (id) => byId.get(id) ?? null,
     list(filters) {
       const { where, params } = buildFilter(filters);

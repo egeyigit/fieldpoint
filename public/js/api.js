@@ -37,6 +37,7 @@ export const api = {
   listSites: (params) => request('GET', `/api/sites?${new URLSearchParams(params)}`),
   createSite: (data) => request('POST', '/api/sites', data),
   updateSite: (id, data) => request('PUT', `/api/sites/${id}`, data),
+  bulkUpdateSites: (ids, changes) => request('PATCH', '/api/sites/bulk', { ids, changes }),
   deleteSite: (id) => request('DELETE', `/api/sites/${id}`),
   listUsers: () => request('GET', '/api/users'),
   updateUser: (id, data) => request('PATCH', `/api/users/${id}`, data),

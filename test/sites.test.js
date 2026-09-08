@@ -106,6 +106,39 @@ describe('sites', () => {
     assert.deepEqual(response.body.stats, [{ category: 'office', status: 'active', count: 2 }]);
   });
 
+  it('bulk-updates multiple sites in one transaction', async () => {
+    const a = (await ctx.agent.post('/api/sites').send({ ...SITE, name: 'A' })).body.site.id;
+    const b = (await ctx.agent.post('/api/sites').send({ ...SITE, name: 'B' })).body.site.id;
+    const response = await ctx.agent.patch('/api/sites/bulk').send({ ids: [a, b], changes: { status: 'inactive' } });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.sites.length, 2);
+    assert.ok(response.body.sites.every((site) => site.status === 'inactive'));
+  });
+
+  it('rolls back the whole batch when any id is invalid', async () => {
+    const a = (await ctx.agent.post('/api/sites').send({ ...SITE, name: 'A' })).body.site.id;
+    const response = await ctx.agent.patch('/api/sites/bulk').send({ ids: [a, 999999], changes: { status: 'inactive' } });
+    assert.equal(response.status, 404);
+    assert.equal((await ctx.agent.get(`/api/sites/${a}`)).body.site.status, 'active');
+  });
+
+  it('lets only admins bulk-delete sites', async () => {
+    const member = await createMember(ctx.agent, ctx.app);
+    const id = (await ctx.agent.post('/api/sites').send(SITE)).body.site.id;
+    assert.equal((await member.patch('/api/sites/bulk').send({ ids: [id], changes: { delete: true } })).status, 403);
+    const deleted = await ctx.agent.patch('/api/sites/bulk').send({ ids: [id], changes: { delete: true } });
+    assert.equal(deleted.status, 200);
+    assert.deepEqual(deleted.body.deleted, [id]);
+    assert.equal((await ctx.agent.get(`/api/sites/${id}`)).status, 404);
+  });
+
+  it('writes an audit entry for bulk updates', async () => {
+    const id = (await ctx.agent.post('/api/sites').send(SITE)).body.site.id;
+    await ctx.agent.patch('/api/sites/bulk').send({ ids: [id], changes: { status: 'planned' } });
+    const audit = await ctx.agent.get('/api/users/audit');
+    assert.ok(audit.body.entries.map((entry) => entry.action).includes('site.bulk_update'));
+  });
+
   it('writes audit entries for site mutations', async () => {
     const { body } = await ctx.agent.post('/api/sites').send(SITE);
     await ctx.agent.delete(`/api/sites/${body.site.id}`);

@@ -56,6 +56,14 @@
             <button id="add-btn" class="primary small">+ Add site</button>
           </div>
         </div>
+        <label class="row gap select-all"><input type="checkbox" id="select-all" /> Select all</label>
+        <div id="bulk-bar" class="row gap wrap bulk-bar" hidden>
+          <span class="muted" id="bulk-count">0 selected</span>
+          <button type="button" id="bulk-status-btn" class="ghost small">Set status</button>
+          <button type="button" id="bulk-category-btn" class="ghost small">Set category</button>
+          <button type="button" id="bulk-assign-btn" class="ghost small">Assign</button>
+          <button type="button" id="bulk-delete-btn" class="danger small" hidden>Delete</button>
+        </div>
         <p class="hint">Tip: right-click the map to add a site at that point.</p>
         <ul id="site-list" class="site-list" aria-label="Site list"></ul>
       </div>
