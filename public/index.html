@@ -76,9 +76,36 @@
         </div>
         <div class="row between">
           <span class="muted" id="wo-count">0 work orders</span>
-          <button id="wo-add" class="primary small" type="button">+ New work order</button>
+          <div class="row gap">
+            <div class="view-switch" role="tablist" aria-label="Work order view">
+              <button type="button" class="ghost small active" id="wo-view-list" role="tab" aria-selected="true">List</button>
+              <button type="button" class="ghost small" id="wo-view-calendar" role="tab" aria-selected="false">Calendar</button>
+            </div>
+            <button id="wo-add" class="primary small" type="button">+ New work order</button>
+          </div>
         </div>
         <ul id="wo-list" class="site-list" aria-label="Work order list"></ul>
+        <div id="wo-calendar" class="wo-calendar" hidden>
+          <div class="wo-cal-toolbar row between">
+            <div class="row gap">
+              <button type="button" class="ghost small" id="wo-cal-prev" aria-label="Previous period">‹</button>
+              <button type="button" class="ghost small" id="wo-cal-today">Today</button>
+              <button type="button" class="ghost small" id="wo-cal-next" aria-label="Next period">›</button>
+            </div>
+            <span class="wo-cal-label mono" id="wo-cal-label" aria-live="polite"></span>
+            <div class="view-switch" role="tablist" aria-label="Calendar range">
+              <button type="button" class="ghost small active" id="wo-cal-month" role="tab" aria-selected="true">Month</button>
+              <button type="button" class="ghost small" id="wo-cal-week" role="tab" aria-selected="false">Week</button>
+            </div>
+          </div>
+          <div class="wo-cal-body">
+            <div class="wo-cal-grid" id="wo-cal-grid" aria-label="Work order calendar"></div>
+            <div class="wo-unscheduled" aria-label="Unscheduled work orders">
+              <h4>Unscheduled</h4>
+              <ul id="wo-unscheduled-list" class="wo-chip-list"></ul>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div id="panel-admin" class="panel" hidden>

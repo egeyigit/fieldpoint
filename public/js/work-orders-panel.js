@@ -1,6 +1,7 @@
 import { api } from './api.js';
 import { WORK_ORDER_PRIORITIES, WORK_ORDER_SORTS, WORK_ORDER_STATUSES } from './constants.js';
 import { $, absoluteTime, relativeTime, setOptions, todayIso, toast } from './ui.js';
+import { createWorkOrderCalendar } from './work-orders-calendar.js';
 
 const DONE_STATUSES = new Set(['done', 'cancelled']);
 
@@ -18,6 +19,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
   let orders = [];
   let directory = [];
   let openOrderId = null;
+  let calendar = null;
 
   setOptions($('#wo-filter-status'), Object.entries(WORK_ORDER_STATUSES), { placeholder: 'Any status' });
   setOptions($('#wo-filter-priority'), Object.entries(WORK_ORDER_PRIORITIES), { placeholder: 'Any priority' });
@@ -38,6 +40,11 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
 
   function isOverdue(order) {
     return Boolean(order.dueDate) && order.dueDate < todayIso() && !DONE_STATUSES.has(order.status);
+  }
+
+  function render() {
+    renderList();
+    if (calendar) calendar.render(orders);
   }
 
   function renderList() {
@@ -90,7 +97,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
       const [result, people] = await Promise.all([api.listWorkOrders(filters()), api.directory()]);
       orders = result.workOrders;
       directory = people.users;
-      renderList();
+      render();
     } catch (error) {
       toast(error.message, true);
     }
@@ -217,6 +224,32 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
       errorBox.textContent = error.message;
     }
   });
+
+  async function reschedule(orderId, dueDate) {
+    try {
+      await api.updateWorkOrder(orderId, { dueDate });
+      toast(dueDate ? `Rescheduled to ${dueDate}` : 'Moved to unscheduled');
+      await refresh();
+    } catch (error) {
+      toast(error.message, true);
+    }
+  }
+
+  calendar = createWorkOrderCalendar({ onOpen: (order) => openEditor(order), onReschedule: reschedule });
+
+  function showView(name) {
+    const calendarActive = name === 'calendar';
+    $('#wo-list').hidden = calendarActive;
+    $('#wo-calendar').hidden = !calendarActive;
+    $('#wo-view-list').classList.toggle('active', !calendarActive);
+    $('#wo-view-list').setAttribute('aria-selected', String(!calendarActive));
+    $('#wo-view-calendar').classList.toggle('active', calendarActive);
+    $('#wo-view-calendar').setAttribute('aria-selected', String(calendarActive));
+    if (calendarActive) calendar.render(orders);
+  }
+
+  $('#wo-view-list').addEventListener('click', () => showView('list'));
+  $('#wo-view-calendar').addEventListener('click', () => showView('calendar'));
 
   $('#wo-cancel').addEventListener('click', () => dialog.close());
   $('#wo-add').addEventListener('click', () => openEditor());
