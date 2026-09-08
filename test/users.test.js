@@ -42,14 +42,15 @@ describe('user administration', () => {
     assert.equal(login.status, 401);
   });
 
-  it('directory is readable by members, lists only active users, and hides hashes', async () => {
+  it('directory is readable by members, exposes only id/name/role, and lists only active users', async () => {
     const member = await createMember(ctx.agent, ctx.app);
     const response = await member.get('/api/users/directory');
     assert.equal(response.status, 200);
     assert.equal(response.body.users.length, 2);
-    assert.deepEqual(Object.keys(response.body.users[0]).sort(), ['email', 'id', 'name', 'role']);
+    assert.deepEqual(Object.keys(response.body.users[0]).sort(), ['id', 'name', 'role']);
+    assert.ok(response.body.users.every((user) => !('email' in user)));
 
-    const memberId = response.body.users.find((user) => user.email === MEMBER.email).id;
+    const memberId = (await ctx.agent.get('/api/users')).body.users.find((user) => user.email === MEMBER.email).id;
     await ctx.agent.patch(`/api/users/${memberId}`).send({ isActive: false });
     const afterDeactivation = await ctx.agent.get('/api/users/directory');
     assert.equal(afterDeactivation.body.users.length, 1);

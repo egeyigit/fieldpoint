@@ -9,7 +9,7 @@ export function createUserRepository(db) {
     insert: db.prepare(`INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)`),
     list: db.prepare(`SELECT ${PUBLIC_COLUMNS} FROM users ORDER BY created_at ASC`),
     directory: db.prepare(
-      `SELECT id, name, email, role FROM users WHERE is_active = 1 ORDER BY name COLLATE NOCASE, id`,
+      `SELECT id, name, role FROM users WHERE is_active = 1 ORDER BY name COLLATE NOCASE, id`,
     ),
     update: db.prepare(
       `UPDATE users SET role = COALESCE(?, role), is_active = COALESCE(?, is_active),
@@ -26,7 +26,7 @@ export function createUserRepository(db) {
     count: () => statements.count.get().count,
     countActiveAdmins: () => statements.countAdmins.get().count,
     list: () => statements.list.all(),
-    /** Active users only, safe for any signed-in member to see (no timestamps, no hashes). */
+    /** Active users only, safe for any signed-in member to see (id, name, role — no email, timestamps, or hashes). */
     directory: () => statements.directory.all(),
     create({ email, name, passwordHash, role }) {
       const result = statements.insert.run(email.toLowerCase(), name, passwordHash, role);
