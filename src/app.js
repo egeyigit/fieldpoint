@@ -19,6 +19,7 @@ const require = createRequire(import.meta.url);
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const PUBLIC_DIR = join(ROOT, 'public');
 const LEAFLET_DIR = dirname(require.resolve('leaflet/package.json'));
+const MARKERCLUSTER_DIR = dirname(require.resolve('leaflet.markercluster/package.json'));
 const BODY_LIMIT = '64kb';
 const API_WINDOW_MS = 60 * 1000;
 const API_MAX_REQUESTS = 600;
@@ -77,6 +78,7 @@ export function createApp(config) {
   app.use('/api', notFoundHandler);
 
   app.use('/vendor/leaflet', express.static(join(LEAFLET_DIR, 'dist'), { immutable: true, maxAge: '7d' }));
+  app.use('/vendor/markercluster', express.static(join(MARKERCLUSTER_DIR, 'dist'), { immutable: true, maxAge: '7d' }));
   // max-age 0 + ETag: browsers revalidate on every load, so UI updates never go stale.
   app.use(express.static(PUBLIC_DIR, { extensions: ['html'], maxAge: 0, etag: true }));
   app.use(errorHandler);

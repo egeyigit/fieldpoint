@@ -9,6 +9,35 @@ function escapeHtml(text) {
   return String(text ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
 
+function dominantCategory(markers) {
+  const counts = new Map();
+  for (const marker of markers) {
+    const category = marker.options.siteCategory ?? 'other';
+    counts.set(category, (counts.get(category) ?? 0) + 1);
+  }
+  let best = 'other';
+  let bestCount = -1;
+  for (const [category, count] of counts) {
+    if (count > bestCount) {
+      best = category;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+function clusterIcon(cluster) {
+  const children = cluster.getAllChildMarkers();
+  const count = children.length;
+  const color = CATEGORIES[dominantCategory(children)]?.color ?? CATEGORIES.other.color;
+  return L.divIcon({
+    className: '',
+    html: `<div class="cluster-pin" style="background:${color}">${count}</div>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+  });
+}
+
 function pinIcon(category, status) {
   const color = CATEGORIES[category]?.color ?? CATEGORIES.other.color;
   const opacity = status === 'inactive' ? 0.45 : 1;
@@ -25,7 +54,11 @@ function pinIcon(category, status) {
 export function createMapView(element, { onSelect, onAddAt }) {
   const map = L.map(element, { zoomControl: true }).setView(DEFAULT_VIEW.center, DEFAULT_VIEW.zoom);
   L.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(map);
-  const layer = L.layerGroup().addTo(map);
+  const layer = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    spiderfyOnMaxZoom: true,
+    iconCreateFunction: clusterIcon,
+  }).addTo(map);
   const markers = new Map();
 
   map.on('contextmenu', (event) => onAddAt(event.latlng.lat, event.latlng.lng));
@@ -55,13 +88,17 @@ export function createMapView(element, { onSelect, onAddAt }) {
       layer.clearLayers();
       markers.clear();
       for (const site of sites) {
-        const marker = L.marker([site.lat, site.lng], { icon: pinIcon(site.category, site.status), title: site.name });
+        const marker = L.marker([site.lat, site.lng], {
+          icon: pinIcon(site.category, site.status),
+          title: site.name,
+          siteCategory: site.category,
+        });
         marker.bindPopup(
           `<b>${escapeHtml(site.name)}</b><br><span style="opacity:.7">${escapeHtml(site.address || '—')}</span>` +
             `<br><small>${escapeHtml(CATEGORIES[site.category]?.label ?? site.category)} · ${escapeHtml(site.status)}</small>`,
         );
         marker.on('click', () => onSelect(site.id));
-        marker.addTo(layer);
+        layer.addLayer(marker);
         markers.set(site.id, marker);
       }
     },
@@ -73,8 +110,13 @@ export function createMapView(element, { onSelect, onAddAt }) {
     focus(id) {
       const marker = markers.get(id);
       if (!marker) return;
-      map.setView(marker.getLatLng(), Math.max(map.getZoom(), FOCUS_ZOOM));
-      marker.openPopup();
+      const openHere = () => {
+        map.setView(marker.getLatLng(), Math.max(map.getZoom(), FOCUS_ZOOM));
+        marker.openPopup();
+      };
+      // The marker may be hidden inside a cluster; expand it first, then open.
+      if (typeof layer.zoomToShowLayer === 'function') layer.zoomToShowLayer(marker, openHere);
+      else openHere();
     },
     invalidate: () => map.invalidateSize(),
   };

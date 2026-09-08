@@ -95,6 +95,7 @@ dialog h3 { margin: 0 0 4px; }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--surface); color: var(--text); }
 .leaflet-popup-content { margin: 10px 12px; }
 .marker-pin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,0.5); }
+.cluster-pin { width: 34px; height: 34px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: #04110a; }
 
 @media (max-width: 800px) {
   .shell { grid-template-rows: 48px 45vh 1fr; grid-template-columns: 1fr; grid-template-areas: "top" "map" "side"; }

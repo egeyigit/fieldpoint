@@ -22,6 +22,11 @@ describe('app plumbing', () => {
     assert.equal((await ctx.agent.get('/vendor/leaflet/leaflet.js')).status, 200);
   });
 
+  it('serves vendored markercluster assets', async () => {
+    assert.equal((await ctx.agent.get('/vendor/markercluster/leaflet.markercluster.js')).status, 200);
+    assert.equal((await ctx.agent.get('/vendor/markercluster/MarkerCluster.css')).status, 200);
+  });
+
   it('returns JSON 404 for unknown API routes', async () => {
     const response = await ctx.agent.get('/api/nope');
     assert.equal(response.status, 404);
