@@ -17,7 +17,7 @@ describe('migrations', () => {
   it('build every table on a fresh database', () => {
     const db = openDatabase(':memory:');
     try {
-      for (const table of ['users', 'sessions', 'sites', 'audit_log', 'work_orders', 'work_order_comments']) {
+      for (const table of ['users', 'sessions', 'sites', 'audit_log', 'work_orders', 'work_order_comments', 'teams', 'team_members']) {
         assert.ok(tableNames(db).includes(table), `missing ${table}`);
       }
       const version = db.prepare(`SELECT value FROM schema_meta WHERE key = 'version'`).get().value;
@@ -58,9 +58,14 @@ describe('migrations', () => {
       assert.equal(db.prepare('SELECT name FROM sites').get().name, 'Kept');
       assert.ok(tableNames(db).includes('work_orders'));
       // New columns exist and default to NULL on pre-existing rows.
-      const site = db.prepare('SELECT assigned_to, deleted_at FROM sites').get();
+      const site = db.prepare('SELECT assigned_to, deleted_at, team_id FROM sites').get();
       assert.equal(site.assigned_to, null);
       assert.equal(site.deleted_at, null);
+      // The teams migration folds the pre-existing row into the default team
+      // and makes the pre-existing user a member of it, so nobody is locked out.
+      assert.equal(site.team_id, 1);
+      assert.equal(db.prepare('SELECT name FROM teams WHERE id = 1').get().name, 'Default Team');
+      assert.equal(db.prepare('SELECT COUNT(*) AS count FROM team_members WHERE team_id = 1').get().count, 1);
     } finally {
       db.close();
     }

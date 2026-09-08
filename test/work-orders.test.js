@@ -141,6 +141,22 @@ describe('work orders', () => {
     assert.equal(response.body.summary.reduce((sum, row) => sum + row.count, 0), 2);
   });
 
+  it('hides orders from a user in another team and blocks cross-team writes', async () => {
+    const { body } = await ctx.agent.post('/api/work-orders').send(newOrder());
+    const id = body.workOrder.id;
+    const member = await createMember(ctx.agent, ctx.app);
+    const meId = (await member.get('/api/auth/me')).body.user.id;
+    ctx.db.prepare(`INSERT INTO teams (name) VALUES ('Other Team')`).run();
+    const otherTeamId = ctx.db.prepare(`SELECT id FROM teams WHERE name = 'Other Team'`).get().id;
+    ctx.db.prepare('DELETE FROM team_members WHERE user_id = ?').run(meId);
+    ctx.db.prepare('INSERT INTO team_members (team_id, user_id) VALUES (?, ?)').run(otherTeamId, meId);
+
+    assert.equal((await member.get('/api/work-orders')).body.total, 0);
+    assert.equal((await member.get(`/api/work-orders/${id}`)).status, 404);
+    assert.equal((await member.patch(`/api/work-orders/${id}`).send({ status: 'done' })).status, 404);
+    assert.equal((await ctx.agent.get(`/api/work-orders/${id}`)).body.workOrder.status, 'open');
+  });
+
   it('audits create, update, delete and comment', async () => {
     const { body } = await ctx.agent.post('/api/work-orders').send(newOrder());
     await ctx.agent.patch(`/api/work-orders/${body.workOrder.id}`).send({ status: 'in_progress' });

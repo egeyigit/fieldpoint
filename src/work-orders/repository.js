@@ -1,4 +1,4 @@
-const COLUMNS = `w.id, w.site_id AS siteId, w.title, w.description, w.status, w.priority,
+const COLUMNS = `w.id, w.site_id AS siteId, w.team_id AS teamId, w.title, w.description, w.status, w.priority,
   w.assigned_to AS assignedTo, w.due_date AS dueDate, w.completed_at AS completedAt,
   w.created_by AS createdBy, w.updated_by AS updatedBy, w.created_at AS createdAt, w.updated_at AS updatedAt,
   s.name AS siteName, s.lat AS siteLat, s.lng AS siteLng,
@@ -25,12 +25,12 @@ const ORDER_BY_SORT = {
 };
 
 export function createWorkOrderRepository(db) {
-  const byId = db.prepare(`SELECT ${COLUMNS} ${FROM} WHERE w.id = ?`);
+  const byId = db.prepare(`SELECT ${COLUMNS} ${FROM} WHERE w.id = ? AND w.team_id = ?`);
   const insert = db.prepare(
-    `INSERT INTO work_orders (site_id, title, description, status, priority, assigned_to, due_date, completed_at, created_by, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO work_orders (site_id, title, description, status, priority, assigned_to, due_date, completed_at, created_by, updated_by, team_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
-  const remove = db.prepare(`DELETE FROM work_orders WHERE id = ?`);
+  const remove = db.prepare(`DELETE FROM work_orders WHERE id = ? AND team_id = ?`);
   const insertComment = db.prepare(
     `INSERT INTO work_order_comments (work_order_id, author_id, body) VALUES (?, ?, ?)`,
   );
@@ -43,13 +43,14 @@ export function createWorkOrderRepository(db) {
   const summary = db.prepare(
     `SELECT w.status, w.priority, COUNT(*) AS count FROM work_orders w
      JOIN sites s ON s.id = w.site_id AND s.deleted_at IS NULL
+     WHERE w.team_id = ?
      GROUP BY w.status, w.priority`,
   );
 
-  function buildFilter(filters) {
+  function buildFilter(filters, teamId) {
     // Work orders on a soft-deleted site stay out of every listing.
-    const clauses = ['s.deleted_at IS NULL'];
-    const params = [];
+    const clauses = ['w.team_id = ?', 's.deleted_at IS NULL'];
+    const params = [teamId];
     if (filters.siteId !== undefined) {
       clauses.push('w.site_id = ?');
       params.push(filters.siteId);
@@ -84,9 +85,9 @@ export function createWorkOrderRepository(db) {
   }
 
   return {
-    findById: (id) => byId.get(id) ?? null,
-    list(filters) {
-      const { where, params } = buildFilter(filters);
+    findById: (id, teamId) => byId.get(id, teamId) ?? null,
+    list(filters, teamId) {
+      const { where, params } = buildFilter(filters, teamId);
       const order = ORDER_BY_SORT[filters.sort] ?? ORDER_BY_SORT.due;
       const rows = db
         .prepare(`SELECT ${COLUMNS} ${FROM} ${where} ORDER BY ${order} LIMIT ? OFFSET ?`)
@@ -96,16 +97,16 @@ export function createWorkOrderRepository(db) {
         .get(...params);
       return { rows, total };
     },
-    create(data, userId) {
+    create(data, userId, teamId) {
       const completedAt = TERMINAL_STATUSES.has(data.status) ? nowIso() : null;
       const result = insert.run(
         data.siteId, data.title, data.description, data.status, data.priority,
-        data.assignedTo ?? null, data.dueDate ?? null, completedAt, userId, userId,
+        data.assignedTo ?? null, data.dueDate ?? null, completedAt, userId, userId, teamId,
       );
-      return byId.get(result.lastInsertRowid);
+      return byId.get(result.lastInsertRowid, teamId);
     },
-    update(id, data, userId) {
-      const current = byId.get(id);
+    update(id, data, userId, teamId) {
+      const current = byId.get(id, teamId);
       if (!current) return null;
       const fields = UPDATABLE.filter((key) => data[key] !== undefined);
       const assignments = fields.map((key) => `${COLUMN_BY_FIELD[key] ?? key} = ?`);
@@ -118,17 +119,17 @@ export function createWorkOrderRepository(db) {
       if (assignments.length === 0) return current;
       db.prepare(
         `UPDATE work_orders SET ${assignments.join(', ')}, updated_by = ?,
-         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?`,
-      ).run(...values, userId, id);
-      return byId.get(id);
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND team_id = ?`,
+      ).run(...values, userId, id, teamId);
+      return byId.get(id, teamId);
     },
-    remove: (id) => remove.run(id).changes > 0,
+    remove: (id, teamId) => remove.run(id, teamId).changes > 0,
     addComment: (workOrderId, authorId, body) => {
       const result = insertComment.run(workOrderId, authorId, body);
       return listComments.all(workOrderId).find((comment) => comment.id === Number(result.lastInsertRowid));
     },
     comments: (workOrderId) => listComments.all(workOrderId),
-    summary: () => summary.all(),
+    summary: (teamId) => summary.all(teamId),
   };
 }
 

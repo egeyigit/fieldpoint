@@ -11,9 +11,12 @@ import { recordAudit } from '../audit/log.js';
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 20;
 
-export function createAuthRouter({ db, users, sessions, config }) {
+export function createAuthRouter({ db, users, sessions, teams, config }) {
   const router = Router();
   const cookie = cookieOptions(config);
+
+  // Every account belongs to the default team the teams migration seeds.
+  const DEFAULT_TEAM_ID = 1;
 
   const loginLimiter = rateLimit({
     windowMs: LOGIN_WINDOW_MS,
@@ -40,6 +43,7 @@ export function createAuthRouter({ db, users, sessions, config }) {
       }
       if (users.findByEmail(email)) throw new HttpError(409, 'Email already registered');
       const user = users.create({ email, name, passwordHash, role: isBootstrap ? 'admin' : 'member' });
+      teams.addMember(DEFAULT_TEAM_ID, user.id);
       recordAudit(db, {
         userId: req.user?.id ?? user.id,
         action: 'user.create',

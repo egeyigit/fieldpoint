@@ -1,6 +1,6 @@
 import { boundingBox, haversineKm } from './geo.js';
 
-const COLUMNS = `s.id, s.name, s.address, s.lat, s.lng, s.category, s.status, s.notes,
+const COLUMNS = `s.id, s.name, s.address, s.lat, s.lng, s.category, s.status, s.notes, s.team_id AS teamId,
   s.assigned_to AS assignedTo, s.created_by AS createdBy, s.updated_by AS updatedBy,
   s.deleted_at AS deletedAt, s.created_at AS createdAt, s.updated_at AS updatedAt,
   cu.name AS createdByName, uu.name AS updatedByName, au.name AS assignedToName`;
@@ -20,28 +20,28 @@ const ORDER_BY_SORT = {
 };
 
 export function createSiteRepository(db) {
-  const byId = db.prepare(`SELECT ${COLUMNS} ${FROM} WHERE s.id = ?`);
+  const byId = db.prepare(`SELECT ${COLUMNS} ${FROM} WHERE s.id = ? AND s.team_id = ?`);
   const insert = db.prepare(
-    `INSERT INTO sites (name, address, lat, lng, category, status, notes, assigned_to, created_by, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO sites (name, address, lat, lng, category, status, notes, assigned_to, created_by, updated_by, team_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const softDelete = db.prepare(
     `UPDATE sites SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), deleted_by = ?
-     WHERE id = ? AND deleted_at IS NULL`,
+     WHERE id = ? AND team_id = ? AND deleted_at IS NULL`,
   );
   const restore = db.prepare(
     `UPDATE sites SET deleted_at = NULL, deleted_by = NULL,
      updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by = ?
-     WHERE id = ? AND deleted_at IS NOT NULL`,
+     WHERE id = ? AND team_id = ? AND deleted_at IS NOT NULL`,
   );
   const stats = db.prepare(
-    `SELECT category, status, COUNT(*) AS count FROM sites WHERE deleted_at IS NULL
+    `SELECT category, status, COUNT(*) AS count FROM sites WHERE deleted_at IS NULL AND team_id = ?
      GROUP BY category, status ORDER BY category, status`,
   );
 
-  function buildFilter(filters) {
-    const clauses = [];
-    const params = [];
+  function buildFilter(filters, teamId) {
+    const clauses = ['s.team_id = ?'];
+    const params = [teamId];
     if (!filters.includeDeleted) clauses.push('s.deleted_at IS NULL');
     if (filters.q) {
       clauses.push(`(s.name LIKE ? ESCAPE '\\' OR s.address LIKE ? ESCAPE '\\' OR s.notes LIKE ? ESCAPE '\\')`);
@@ -78,7 +78,7 @@ export function createSiteRepository(db) {
         params.push(box.minLng, box.maxLng);
       }
     }
-    return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
+    return { where: `WHERE ${clauses.join(' AND ')}`, params };
   }
 
   /** Exact distance filter applied after the SQL bounding box narrows the set. */
@@ -98,14 +98,14 @@ export function createSiteRepository(db) {
   }
 
   return {
-    findById: (id) => byId.get(id) ?? null,
-    /** Visible (not soft-deleted) site, or null. */
-    findVisibleById(id) {
-      const site = byId.get(id);
+    findById: (id, teamId) => byId.get(id, teamId) ?? null,
+    /** Visible (not soft-deleted) site in the team, or null. */
+    findVisibleById(id, teamId) {
+      const site = byId.get(id, teamId);
       return site && site.deletedAt === null ? site : null;
     },
-    list(filters) {
-      const { where, params } = buildFilter(filters);
+    list(filters, teamId) {
+      const { where, params } = buildFilter(filters, teamId);
       const order = ORDER_BY_SORT[filters.sort] ?? ORDER_BY_SORT.name;
       // A radius query filters exact distances in JS, so paginate after that.
       if (filters.radiusKm !== undefined) {
@@ -122,31 +122,31 @@ export function createSiteRepository(db) {
       return { rows, total };
     },
     /** Every matching row, no pagination — for exports. */
-    listAll(filters) {
-      const { where, params } = buildFilter(filters);
+    listAll(filters, teamId) {
+      const { where, params } = buildFilter(filters, teamId);
       const order = ORDER_BY_SORT[filters.sort] ?? ORDER_BY_SORT.name;
       const rows = db.prepare(`SELECT ${COLUMNS} ${FROM} ${where} ORDER BY ${order}`).all(...params);
       return sortRows(applyRadius(rows, filters), filters.sort);
     },
-    create(data, userId) {
+    create(data, userId, teamId) {
       const result = insert.run(
         data.name, data.address, data.lat, data.lng, data.category, data.status, data.notes,
-        data.assignedTo ?? null, userId, userId,
+        data.assignedTo ?? null, userId, userId, teamId,
       );
-      return byId.get(result.lastInsertRowid);
+      return byId.get(result.lastInsertRowid, teamId);
     },
-    update(id, data, userId) {
+    update(id, data, userId, teamId) {
       const fields = UPDATABLE.filter((key) => data[key] !== undefined);
-      if (fields.length === 0) return byId.get(id) ?? null;
+      if (fields.length === 0) return byId.get(id, teamId) ?? null;
       const assignments = fields.map((key) => `${COLUMN_BY_FIELD[key] ?? key} = ?`).join(', ');
       db.prepare(
-        `UPDATE sites SET ${assignments}, updated_by = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?`,
-      ).run(...fields.map((key) => data[key]), userId, id);
-      return byId.get(id) ?? null;
+        `UPDATE sites SET ${assignments}, updated_by = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND team_id = ?`,
+      ).run(...fields.map((key) => data[key]), userId, id, teamId);
+      return byId.get(id, teamId) ?? null;
     },
-    softDelete: (id, userId) => softDelete.run(userId, id).changes > 0,
-    restore: (id, userId) => restore.run(userId, id).changes > 0,
-    stats: () => stats.all(),
+    softDelete: (id, userId, teamId) => softDelete.run(userId, id, teamId).changes > 0,
+    restore: (id, userId, teamId) => restore.run(userId, id, teamId).changes > 0,
+    stats: (teamId) => stats.all(teamId),
   };
 }
 

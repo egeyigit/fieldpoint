@@ -113,4 +113,26 @@ describe('sites', () => {
     const actions = audit.body.entries.map((entry) => entry.action);
     assert.ok(actions.includes('site.create') && actions.includes('site.delete'));
   });
+
+  it('hides sites from a user in another team and blocks cross-team writes', async () => {
+    const created = await ctx.agent.post('/api/sites').send(SITE);
+    const id = created.body.site.id;
+    // Put the member in a separate team so they share no data with the admin.
+    const member = await createMember(ctx.agent, ctx.app);
+    const meId = (await member.get('/api/auth/me')).body.user.id;
+    ctx.db.prepare(`INSERT INTO teams (name) VALUES ('Other Team')`).run();
+    const otherTeamId = ctx.db.prepare(`SELECT id FROM teams WHERE name = 'Other Team'`).get().id;
+    ctx.db.prepare('DELETE FROM team_members WHERE user_id = ?').run(meId);
+    ctx.db.prepare('INSERT INTO team_members (team_id, user_id) VALUES (?, ?)').run(otherTeamId, meId);
+
+    assert.equal((await member.get('/api/sites')).body.total, 0);
+    assert.equal((await member.get(`/api/sites/${id}`)).status, 404);
+    assert.equal((await member.put(`/api/sites/${id}`).send({ name: 'Hijacked' })).status, 404);
+    assert.equal((await ctx.agent.get(`/api/sites/${id}`)).body.site.name, 'HQ');
+
+    // The site the member creates is invisible to the admin's team.
+    const mine = await member.post('/api/sites').send({ ...SITE, name: 'Member HQ' });
+    assert.equal(mine.status, 201);
+    assert.equal((await ctx.agent.get(`/api/sites/${mine.body.site.id}`)).status, 404);
+  });
 });

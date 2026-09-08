@@ -1,7 +1,11 @@
 import { createUserRepository } from '../users/repository.js';
 import { createSiteRepository } from '../sites/repository.js';
 import { createWorkOrderRepository } from '../work-orders/repository.js';
+import { createTeamRepository } from '../teams/repository.js';
 import { hashPassword } from '../auth/password.js';
+
+// The default team the teams migration folds every workspace into.
+const DEFAULT_TEAM_ID = 1;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -42,6 +46,7 @@ export async function seedDemo(db, { log = () => {} } = {}) {
   const users = createUserRepository(db);
   const sites = createSiteRepository(db);
   const workOrders = createWorkOrderRepository(db);
+  const teams = createTeamRepository(db);
   const created = { users: [], sites: [], workOrders: [] };
   let adminId = null;
 
@@ -52,23 +57,24 @@ export async function seedDemo(db, { log = () => {} } = {}) {
       continue;
     }
     const row = users.create({ ...user, passwordHash: await hashPassword(user.password) });
+    teams.addMember(DEFAULT_TEAM_ID, row.id);
     if (user.role === 'admin' && adminId === null) adminId = row.id;
     created.users.push(user.email);
     log(`created user: ${user.email} (${user.role})`);
   }
 
-  const existingNames = new Set(sites.listAll({}).map((site) => site.name));
+  const existingNames = new Set(sites.listAll({}, DEFAULT_TEAM_ID).map((site) => site.name));
   for (const site of DEMO_SITES) {
     if (existingNames.has(site.name)) continue;
-    sites.create(site, adminId);
+    sites.create(site, adminId, DEFAULT_TEAM_ID);
     created.sites.push(site.name);
     log(`created site: ${site.name}`);
   }
 
-  const siteIdByName = new Map(sites.listAll({}).map((site) => [site.name, site.id]));
+  const siteIdByName = new Map(sites.listAll({}, DEFAULT_TEAM_ID).map((site) => [site.name, site.id]));
   const operator = users.findByEmail('ops@fieldpoint.local');
   const existingTitles = new Set(
-    workOrders.list({ limit: 500, offset: 0, sort: 'due' }).rows.map((order) => order.title),
+    workOrders.list({ limit: 500, offset: 0, sort: 'due' }, DEFAULT_TEAM_ID).rows.map((order) => order.title),
   );
   for (const order of DEMO_WORK_ORDERS) {
     const siteId = siteIdByName.get(order.site);
@@ -84,6 +90,7 @@ export async function seedDemo(db, { log = () => {} } = {}) {
         dueDate: dueInDays(order.dueInDays),
       },
       adminId,
+      DEFAULT_TEAM_ID,
     );
     created.workOrders.push(order.title);
     log(`created work order: ${order.title}`);
@@ -98,12 +105,15 @@ export async function seedDemo(db, { log = () => {} } = {}) {
 export async function upsertAdmin(db, { email, name, password }) {
   const users = createUserRepository(db);
   const passwordHash = await hashPassword(password);
+  const teams = createTeamRepository(db);
   const existing = users.findByEmail(email);
   if (existing) {
     users.updatePassword(existing.id, passwordHash);
     users.update(existing.id, { role: 'admin', isActive: true });
+    teams.addMember(DEFAULT_TEAM_ID, existing.id);
     return { id: existing.id, created: false };
   }
   const row = users.create({ email, name, passwordHash, role: 'admin' });
+  teams.addMember(DEFAULT_TEAM_ID, row.id);
   return { id: row.id, created: true };
 }
