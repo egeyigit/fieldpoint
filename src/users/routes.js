@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import { validate } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
-import { recordAudit, listAudit } from '../audit/log.js';
+import { recordAudit, listAudit, streamAuditCsv, trimAudit } from '../audit/log.js';
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 const updateSchema = z
@@ -11,7 +11,7 @@ const updateSchema = z
   .refine((body) => body.role !== undefined || body.isActive !== undefined, 'Nothing to update');
 const auditQuery = z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) });
 
-export function createUserRouter({ db, users, sessions }) {
+export function createUserRouter({ db, users, sessions, config }) {
   const router = Router();
 
   // Any signed-in user needs colleague names to assign work; this exposes far
@@ -53,6 +53,21 @@ export function createUserRouter({ db, users, sessions }) {
 
   router.get('/audit', validate(auditQuery, 'query'), (req, res) => {
     res.json({ ok: true, entries: listAudit(db, req.validated.query) });
+  });
+
+  router.get('/audit/export.csv', (_req, res) => {
+    streamAuditCsv(db, res);
+  });
+
+  router.post('/audit/trim', (req, res, next) => {
+    try {
+      const retentionDays = config?.auditRetentionDays ?? 0;
+      if (!retentionDays) throw new HttpError(409, 'Audit retention is not configured');
+      const deleted = trimAudit(db, { retentionDays, userId: req.user.id });
+      res.json({ ok: true, deleted, retentionDays });
+    } catch (error) {
+      next(error);
+    }
   });
 
   return router;

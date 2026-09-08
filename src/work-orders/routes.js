@@ -11,7 +11,7 @@ import {
   workOrderIdSchema,
 } from './schema.js';
 
-export function createWorkOrderRouter({ db, workOrders, sites, users }) {
+export function createWorkOrderRouter({ db, workOrders, sites, users, config }) {
   const router = Router();
   router.use(requireAuth);
 
@@ -43,6 +43,12 @@ export function createWorkOrderRouter({ db, workOrders, sites, users }) {
   router.get('/:id', validate(workOrderIdSchema, 'params'), (req, res, next) => {
     try {
       const order = loadOrder(req.validated.params.id);
+      if (config?.auditReads) {
+        recordAudit(db, {
+          userId: req.user.id, action: 'work_order.read', entityType: 'work_order', entityId: order.id,
+          details: { title: order.title },
+        });
+      }
       return res.json({ ok: true, workOrder: order, comments: workOrders.comments(order.id) });
     } catch (error) {
       return next(error);

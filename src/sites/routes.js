@@ -14,7 +14,7 @@ const includeDeletedSchema = z.object({
     .default(false),
 });
 
-export function createSiteRouter({ db, sites, users }) {
+export function createSiteRouter({ db, sites, users, config }) {
   const router = Router();
   router.use(requireAuth);
 
@@ -73,6 +73,12 @@ export function createSiteRouter({ db, sites, users }) {
       ? sites.findById(req.validated.params.id)
       : sites.findVisibleById(req.validated.params.id);
     if (!site) return next(new HttpError(404, 'Site not found'));
+    if (config?.auditReads) {
+      recordAudit(db, {
+        userId: req.user.id, action: 'site.read', entityType: 'site', entityId: site.id,
+        details: { name: site.name },
+      });
+    }
     return res.json({ ok: true, site });
   });
 
