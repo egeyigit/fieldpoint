@@ -5,7 +5,7 @@ import { HttpError } from '../middleware/errors.js';
 import { recordAudit } from '../audit/log.js';
 import { z } from 'zod';
 import { createSiteSchema, listSitesSchema, siteIdSchema, updateSiteSchema } from './schema.js';
-import { toCsv } from './csv.js';
+import { csvHeaderLine, csvRowLine } from './csv.js';
 
 const includeDeletedSchema = z.object({
   includeDeleted: z
@@ -56,10 +56,14 @@ export function createSiteRouter({ db, sites, users }) {
     } catch (error) {
       return next(error);
     }
-    const rows = sites.listAll(req.validated.query);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="sites.csv"');
-    return res.send(toCsv(rows));
+    // Stream rows so a large export does not buffer the full result set in memory.
+    res.write(`${csvHeaderLine()}\r\n`);
+    for (const row of sites.iterateAll(req.validated.query)) {
+      res.write(`${csvRowLine(row)}\r\n`);
+    }
+    return res.end();
   });
 
   // A soft-deleted site is 404 for everyone; an admin restoring one asks for it

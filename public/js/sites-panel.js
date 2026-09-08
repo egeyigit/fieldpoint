@@ -3,7 +3,6 @@ import { CATEGORIES, NEAR_ME_RADIUS_KM, SITE_SORTS, STATUSES } from './constants
 import { $, absoluteTime, formValues, relativeTime, setOptions, toast } from './ui.js';
 
 const PAGE_SIZE = 1000;
-const MAX_SITES = 10000;
 
 /** Sidebar list + editor dialog for sites. Map is notified through callbacks. */
 export function createSitesPanel({ mapView, currentUser }) {
@@ -12,6 +11,7 @@ export function createSitesPanel({ mapView, currentUser }) {
   const form = $('#site-form');
   const errorBox = $('#site-error');
   let sites = [];
+  let totalSites = 0;
   let directory = [];
   let selectedId = null;
   let nearMe = null;
@@ -106,7 +106,11 @@ export function createSitesPanel({ mapView, currentUser }) {
 
   function renderList() {
     list.replaceChildren();
-    $('#site-count').textContent = `${sites.length} site${sites.length === 1 ? '' : 's'}`;
+    const shown = sites.length;
+    const total = typeof totalSites === 'number' ? totalSites : shown;
+    $('#site-count').textContent = shown === total
+      ? `${shown} site${shown === 1 ? '' : 's'}`
+      : `${shown} of ${total} sites`;
     $('#export-btn').href = `/api/sites/export.csv?${new URLSearchParams(currentFilters())}`;
     if (sites.length === 0) {
       const empty = document.createElement('li');
@@ -148,12 +152,12 @@ export function createSitesPanel({ mapView, currentUser }) {
     mapView.focus(id);
   }
 
-  /** Pages through the API until every matching site is loaded (bounded by MAX_SITES). */
+  /** Pages through the API until every matching site is loaded. */
   async function fetchAllSites(filters) {
     const collected = [];
     let offset = 0;
     let total = Infinity;
-    while (offset < total && collected.length < MAX_SITES) {
+    while (offset < total) {
       const result = await api.listSites({ ...filters, limit: PAGE_SIZE, offset });
       collected.push(...result.sites);
       total = result.total;
@@ -171,9 +175,7 @@ export function createSitesPanel({ mapView, currentUser }) {
       ]);
       directory = people.users;
       sites = result.sites;
-      if (result.total > sites.length) {
-        toast(`Showing ${sites.length} of ${result.total} sites — narrow the filters to see the rest`, true);
-      }
+      totalSites = result.total;
       renderList();
       mapView.render(sites.filter((site) => !site.deletedAt));
       if (fit) mapView.fitAll(sites);

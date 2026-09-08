@@ -7,10 +7,16 @@ function escapeCell(value) {
   return `"${safe.replaceAll('"', '""')}"`;
 }
 
+export function csvHeaderLine() {
+  return HEADERS.join(',');
+}
+
+export function csvRowLine(row) {
+  return HEADERS.map((key) => escapeCell(row[key])).join(',');
+}
+
 export function toCsv(rows) {
-  const lines = [HEADERS.join(',')];
-  for (const row of rows) {
-    lines.push(HEADERS.map((key) => escapeCell(row[key])).join(','));
-  }
+  const lines = [csvHeaderLine()];
+  for (const row of rows) lines.push(csvRowLine(row));
   return `${lines.join('\r\n')}\r\n`;
 }

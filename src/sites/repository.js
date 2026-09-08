@@ -128,6 +128,22 @@ export function createSiteRepository(db) {
       const rows = db.prepare(`SELECT ${COLUMNS} ${FROM} ${where} ORDER BY ${order}`).all(...params);
       return sortRows(applyRadius(rows, filters), filters.sort);
     },
+    /**
+     * Stream every matching row for exports. Radius queries still fall back to
+     * listAll because distance sorting needs the full set in memory.
+     */
+    *iterateAll(filters) {
+      if (filters.radiusKm !== undefined) {
+        for (const row of this.listAll(filters)) yield row;
+        return;
+      }
+      const { where, params } = buildFilter(filters);
+      const order = ORDER_BY_SORT[filters.sort] ?? ORDER_BY_SORT.name;
+      const iterator = db
+        .prepare(`SELECT ${COLUMNS} ${FROM} ${where} ORDER BY ${order}`)
+        .iterate(...params);
+      for (const row of iterator) yield row;
+    },
     create(data, userId) {
       const result = insert.run(
         data.name, data.address, data.lat, data.lng, data.category, data.status, data.notes,
