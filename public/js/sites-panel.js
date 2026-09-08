@@ -13,6 +13,7 @@ export function createSitesPanel({ mapView, currentUser }) {
   const errorBox = $('#site-error');
   let sites = [];
   let selectedId = null;
+  let origin = null;
 
   fillSelect($('#filter-category'), Object.entries(CATEGORIES).map(([key, value]) => [key, value.label]), { keepFirst: true });
   fillSelect($('#filter-status'), Object.entries(STATUSES), { keepFirst: true });
@@ -27,6 +28,11 @@ export function createSitesPanel({ mapView, currentUser }) {
     if (q) params.q = q;
     if (category) params.category = category;
     if (status) params.status = status;
+    if (origin) {
+      params.lat = origin.lat;
+      params.lng = origin.lng;
+      params.radiusKm = Number($('#radius-km').value);
+    }
     return params;
   }
 
@@ -67,7 +73,9 @@ export function createSitesPanel({ mapView, currentUser }) {
       title.append(name, right);
       const sub = document.createElement('div');
       sub.className = 'sub';
-      sub.textContent = `${CATEGORIES[site.category]?.label ?? site.category} · ${site.address || `${site.lat.toFixed(4)}, ${site.lng.toFixed(4)}`}`;
+      const place = site.address || `${site.lat.toFixed(4)}, ${site.lng.toFixed(4)}`;
+      const distance = typeof site.distanceKm === 'number' ? ` · ${site.distanceKm.toFixed(1)} km away` : '';
+      sub.textContent = `${CATEGORIES[site.category]?.label ?? site.category} · ${place}${distance}`;
       item.append(title, sub);
       item.addEventListener('click', () => select(site.id));
       item.addEventListener('dblclick', () => openEditor(site));
@@ -170,11 +178,41 @@ export function createSitesPanel({ mapView, currentUser }) {
     }
   }
 
+  function nearMe() {
+    if (!('geolocation' in navigator)) {
+      return toast('Location is not available on this device', true);
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        origin = { lat: position.coords.latitude, lng: position.coords.longitude };
+        $('#clear-near-me-btn').hidden = false;
+        mapView.showPosition(origin.lat, origin.lng, position.coords.accuracy);
+        refresh();
+      },
+      (error) => {
+        const message =
+          error.code === error.PERMISSION_DENIED
+            ? 'Location permission denied — allow it to search near you'
+            : 'Could not determine your location';
+        toast(message, true);
+      },
+    );
+  }
+
+  function clearNearMe() {
+    origin = null;
+    $('#clear-near-me-btn').hidden = true;
+    refresh();
+  }
+
   form.addEventListener('submit', submitEditor);
   $('#cancel-btn').addEventListener('click', () => dialog.close());
   $('#delete-btn').addEventListener('click', deleteCurrent);
   $('#geocode-btn').addEventListener('click', locateAddress);
   $('#add-btn').addEventListener('click', () => openEditor());
+  $('#near-me-btn').addEventListener('click', nearMe);
+  $('#clear-near-me-btn').addEventListener('click', clearNearMe);
+  $('#radius-km').addEventListener('change', () => { if (origin) refresh(); });
 
   return { refresh, select, openEditor };
 }

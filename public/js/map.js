@@ -27,6 +27,7 @@ export function createMapView(element, { onSelect, onAddAt }) {
   L.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(map);
   const layer = L.layerGroup().addTo(map);
   const markers = new Map();
+  let positionLayer = null;
 
   map.on('contextmenu', (event) => onAddAt(event.latlng.lat, event.latlng.lng));
 
@@ -75,6 +76,14 @@ export function createMapView(element, { onSelect, onAddAt }) {
       if (!marker) return;
       map.setView(marker.getLatLng(), Math.max(map.getZoom(), FOCUS_ZOOM));
       marker.openPopup();
+    },
+    showPosition(lat, lng, accuracyMeters) {
+      if (positionLayer) positionLayer.remove();
+      positionLayer = L.layerGroup([
+        L.circleMarker([lat, lng], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9 }),
+        L.circle([lat, lng], { radius: accuracyMeters, color: '#60a5fa', weight: 1, fillOpacity: 0.08 }),
+      ]).addTo(map);
+      whenSized(() => map.setView([lat, lng], Math.max(map.getZoom(), FOCUS_ZOOM)));
     },
     invalidate: () => map.invalidateSize(),
   };

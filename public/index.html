@@ -49,6 +49,16 @@
             <option value="">All statuses</option>
           </select>
         </div>
+        <div class="row gap">
+          <button id="near-me-btn" type="button" class="ghost small">Near me</button>
+          <select id="radius-km" aria-label="Search radius">
+            <option value="5">5 km</option>
+            <option value="10">10 km</option>
+            <option value="25">25 km</option>
+            <option value="50">50 km</option>
+          </select>
+          <button id="clear-near-me-btn" type="button" class="ghost small" hidden>Clear</button>
+        </div>
         <div class="row between">
           <span class="muted" id="site-count">0 sites</span>
           <div class="row gap">

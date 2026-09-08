@@ -34,10 +34,22 @@ export const updateSiteSchema = z
 
 export const siteIdSchema = z.object({ id: z.coerce.number().int().positive() });
 
-export const listSitesSchema = z.object({
-  q: z.string().trim().max(MAX_SEARCH).optional(),
-  category: z.enum(SITE_CATEGORIES).optional(),
-  status: z.enum(SITE_STATUSES).optional(),
-  limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(500),
-  offset: z.coerce.number().int().min(0).default(0),
-});
+export const listSitesSchema = z
+  .object({
+    q: z.string().trim().max(MAX_SEARCH).optional(),
+    category: z.enum(SITE_CATEGORIES).optional(),
+    status: z.enum(SITE_STATUSES).optional(),
+    lat: fields.lat.optional(),
+    lng: fields.lng.optional(),
+    radiusKm: z.coerce.number().positive().max(20000).optional(),
+    limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(500),
+    offset: z.coerce.number().int().min(0).default(0),
+  })
+  .refine(
+    (query) => (query.radiusKm === undefined) || (query.lat !== undefined && query.lng !== undefined),
+    { message: 'radiusKm requires both lat and lng', path: ['radiusKm'] },
+  )
+  .refine(
+    (query) => (query.lat === undefined && query.lng === undefined) || query.radiusKm !== undefined,
+    { message: 'lat and lng require radiusKm', path: ['radiusKm'] },
+  );
