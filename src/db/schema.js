@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -42,6 +42,22 @@ CREATE TABLE IF NOT EXISTS sites (
 );
 CREATE INDEX IF NOT EXISTS idx_sites_category ON sites(category);
 CREATE INDEX IF NOT EXISTS idx_sites_status ON sites(status);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS sites_fts USING fts5(
+  name, address, notes,
+  content='sites', content_rowid='id'
+);
+
+CREATE TRIGGER IF NOT EXISTS sites_fts_insert AFTER INSERT ON sites BEGIN
+  INSERT INTO sites_fts (rowid, name, address, notes) VALUES (new.id, new.name, new.address, new.notes);
+END;
+CREATE TRIGGER IF NOT EXISTS sites_fts_delete AFTER DELETE ON sites BEGIN
+  INSERT INTO sites_fts (sites_fts, rowid, name, address, notes) VALUES ('delete', old.id, old.name, old.address, old.notes);
+END;
+CREATE TRIGGER IF NOT EXISTS sites_fts_update AFTER UPDATE ON sites BEGIN
+  INSERT INTO sites_fts (sites_fts, rowid, name, address, notes) VALUES ('delete', old.id, old.name, old.address, old.notes);
+  INSERT INTO sites_fts (rowid, name, address, notes) VALUES (new.id, new.name, new.address, new.notes);
+END;
 
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

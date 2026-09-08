@@ -19,6 +19,13 @@ function applySchema(db) {
   if (version > SCHEMA_VERSION) {
     throw new Error(`Database schema version ${version} is newer than supported ${SCHEMA_VERSION}`);
   }
+  if (version < 2) {
+    // The FTS table and triggers are created by SCHEMA_SQL above; backfill existing rows.
+    db.exec(`INSERT INTO sites_fts (rowid, name, address, notes) SELECT id, name, address, notes FROM sites`);
+  }
+  if (version < SCHEMA_VERSION) {
+    db.prepare(`UPDATE schema_meta SET value = ? WHERE key = 'version'`).run(String(SCHEMA_VERSION));
+  }
 }
 
 /**

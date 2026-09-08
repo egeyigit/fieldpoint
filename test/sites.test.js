@@ -61,6 +61,24 @@ describe('sites', () => {
     assert.equal((await ctx.agent.get('/api/sites?category=nope')).status, 400);
   });
 
+  it('searches word-character queries via the FTS index', async () => {
+    await ctx.agent.post('/api/sites').send({ ...SITE, name: 'Northside Depot', notes: 'main warehouse' });
+    await ctx.agent.post('/api/sites').send({ ...SITE, name: 'Southside Office', category: 'client' });
+
+    assert.equal((await ctx.agent.get('/api/sites?q=depot')).body.total, 1);
+    assert.equal((await ctx.agent.get('/api/sites?q=warehouse')).body.total, 1);
+    assert.equal((await ctx.agent.get('/api/sites?q=side')).body.total, 2);
+    assert.equal((await ctx.agent.get('/api/sites?q=north')).body.total, 1);
+
+    const created = await ctx.agent.post('/api/sites').send({ ...SITE, name: 'Eastside' });
+    assert.equal((await ctx.agent.get('/api/sites?q=eastside')).body.total, 1);
+    await ctx.agent.put(`/api/sites/${created.body.site.id}`).send({ name: 'Westside' });
+    assert.equal((await ctx.agent.get('/api/sites?q=eastside')).body.total, 0);
+    assert.equal((await ctx.agent.get('/api/sites?q=westside')).body.total, 1);
+    await ctx.agent.delete(`/api/sites/${created.body.site.id}`);
+    assert.equal((await ctx.agent.get('/api/sites?q=westside')).body.total, 0);
+  });
+
   it('paginates', async () => {
     for (let index = 0; index < 5; index += 1) {
       await ctx.agent.post('/api/sites').send({ ...SITE, name: `Site ${index}` });

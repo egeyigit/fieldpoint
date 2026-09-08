@@ -20,9 +20,15 @@ export function createSiteRepository(db) {
     const clauses = [];
     const params = [];
     if (q) {
-      clauses.push(`(s.name LIKE ? ESCAPE '\\' OR s.address LIKE ? ESCAPE '\\' OR s.notes LIKE ? ESCAPE '\\')`);
-      const pattern = `%${escapeLike(q)}%`;
-      params.push(pattern, pattern, pattern);
+      const match = toMatchQuery(q);
+      if (match) {
+        clauses.push(`s.id IN (SELECT rowid FROM sites_fts WHERE sites_fts MATCH ?)`);
+        params.push(match);
+      } else {
+        clauses.push(`(s.name LIKE ? ESCAPE '\\' OR s.address LIKE ? ESCAPE '\\' OR s.notes LIKE ? ESCAPE '\\')`);
+        const pattern = `%${escapeLike(q)}%`;
+        params.push(pattern, pattern, pattern);
+      }
     }
     if (category) {
       clauses.push(`s.category = ?`);
@@ -72,4 +78,19 @@ export function createSiteRepository(db) {
 
 function escapeLike(value) {
   return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+/**
+ * Builds a safe FTS5 MATCH query from user input, or null when the query is not
+ * expressible as FTS5 tokens (so the caller falls back to LIKE). Each run of
+ * word characters becomes a prefix term; anything else (punctuation, wildcards)
+ * disqualifies the query from MATCH so LIKE semantics are preserved.
+ */
+function toMatchQuery(value) {
+  const tokens = value.match(/[\p{L}\p{N}_]+/gu);
+  if (!tokens || tokens.length === 0) return null;
+  // Only use MATCH when the input is entirely word characters and whitespace,
+  // otherwise LIKE substring semantics (e.g. '100%') would silently change.
+  if (!/^[\p{L}\p{N}_\s]+$/u.test(value)) return null;
+  return tokens.map((token) => `"${token}"*`).join(' ');
 }
