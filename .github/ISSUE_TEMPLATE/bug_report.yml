@@ -1,0 +1,42 @@
+name: Bug report
+description: Report something in FieldPoint that behaves incorrectly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for filing a bug. Please run `npm test` on a clean clone first to confirm it reproduces.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What happens, and what did you expect instead? Include steps to reproduce.
+      placeholder: |
+        1. Sign in as a member.
+        2. Export sites as CSV.
+        3. Observed: ... Expected: ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed fix
+      description: If you have an idea of the cause or fix, describe it here.
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How will we know this is fixed?
+      value: |
+        - [ ] 
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Node version, OS, and how you are running FieldPoint.
+      placeholder: Node 22.13, macOS, npm start
+    validations:
+      required: false

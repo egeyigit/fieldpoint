@@ -1,0 +1,27 @@
+name: Feature request
+description: Propose a change or new capability for FieldPoint.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What need or gap does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What should FieldPoint do? Include API, UI or data changes as relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: The observable outcomes that will tell us this is done.
+      value: |
+        - [ ] 
+    validations:
+      required: true
