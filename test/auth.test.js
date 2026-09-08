@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
+import { listAudit } from '../src/audit/log.js';
 import { ADMIN, MEMBER, bootApp, createMember, registerAdmin } from './helpers.js';
 
 describe('auth', () => {
@@ -53,6 +54,42 @@ describe('auth', () => {
     assert.equal(wrong.status, 401);
     assert.equal(unknown.status, 401);
     assert.equal(wrong.body.error, unknown.body.error);
+  });
+
+  it('locks an account after repeated failed logins regardless of source IP', async () => {
+    await registerAdmin(ctx.agent);
+    // Ten failures against the same email, each from a fresh agent (new IP is
+    // not what protects the account here — the per-email counter is).
+    for (let i = 0; i < 10; i += 1) {
+      const attempt = await request(ctx.app)
+        .post('/api/auth/login')
+        .send({ email: ADMIN.email, password: 'nope-nope-nope' });
+      assert.equal(attempt.status, 401);
+    }
+    // Now even the correct password is refused with the same uniform 401.
+    const locked = await request(ctx.app)
+      .post('/api/auth/login')
+      .send({ email: ADMIN.email, password: ADMIN.password });
+    assert.equal(locked.status, 401);
+    assert.equal(locked.body.error, 'Invalid email or password');
+    const actions = listAudit(ctx.db, { limit: 100 }).map((entry) => entry.action);
+    assert.ok(actions.includes('auth.lockout'));
+  });
+
+  it('a successful login resets the per-account failure counter', async () => {
+    await registerAdmin(ctx.agent);
+    for (let i = 0; i < 9; i += 1) {
+      await request(ctx.app).post('/api/auth/login').send({ email: ADMIN.email, password: 'nope-nope-nope' });
+    }
+    const good = await request(ctx.app).post('/api/auth/login').send({ email: ADMIN.email, password: ADMIN.password });
+    assert.equal(good.status, 200);
+    // Counter is cleared, so nine fresh failures do not lock the account.
+    for (let i = 0; i < 9; i += 1) {
+      const attempt = await request(ctx.app).post('/api/auth/login').send({ email: ADMIN.email, password: 'nope-nope-nope' });
+      assert.equal(attempt.status, 401);
+    }
+    const stillOpen = await request(ctx.app).post('/api/auth/login').send({ email: ADMIN.email, password: ADMIN.password });
+    assert.equal(stillOpen.status, 200);
   });
 
   it('validates registration input', async () => {
