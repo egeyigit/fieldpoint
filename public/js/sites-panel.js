@@ -115,6 +115,48 @@ export function createSitesPanel({ mapView, currentUser }) {
       list.append(empty);
       return;
     }
+ fix-sidebar-keyboard-access
+    for (const site of sites) {
+      const item = document.createElement('li');
+      item.setAttribute('tabindex', '0')
+      item.setAttribute('role', 'button')
+      item.setAttribute('aria-selected', site.id === selectedId ? 'true' : 'false');
+      item.className = `site-item${site.id === selectedId ? ' selected' : ''}`;
+      item.dataset.id = site.id;
+      const title = document.createElement('div');
+      title.className = 'title';
+      const name = document.createElement('span');
+      name.textContent = site.name;
+      const badge = document.createElement('span');
+      badge.className = `badge ${site.status}`;
+      badge.textContent = STATUSES[site.status] ?? site.status;
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'ghost small edit-btn';
+      edit.textContent = 'Edit';
+      edit.setAttribute('aria-label', `Edit ${site.name}`);
+      edit.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openEditor(site);
+      });
+      const right = document.createElement('span');
+      right.className = 'row gap';
+      right.append(badge, edit);
+      title.append(name, right);
+      const sub = document.createElement('div');
+      sub.className = 'sub';
+      sub.textContent = `${CATEGORIES[site.category]?.label ?? site.category} · ${site.address || `${site.lat.toFixed(4)}, ${site.lng.toFixed(4)}`}`;
+      item.append(title, sub);
+      item.addEventListener('click', () => select(site.id));
+      item.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          select(site.id);
+        }
+      });
+      item.addEventListener('dblclick', () => openEditor(site));
+      list.append(item);
+
     list.append(...sites.map(renderRow));
   }
 
@@ -139,6 +181,7 @@ export function createSitesPanel({ mapView, currentUser }) {
       );
     } catch {
       // A stats hiccup must not blank the list; the counts simply stay stale.
+ main
     }
   }
 
