@@ -34,10 +34,24 @@ export const updateSiteSchema = z
 
 export const siteIdSchema = z.object({ id: z.coerce.number().int().positive() });
 
-export const listSitesSchema = z.object({
-  q: z.string().trim().max(MAX_SEARCH).optional(),
-  category: z.enum(SITE_CATEGORIES).optional(),
-  status: z.enum(SITE_STATUSES).optional(),
-  limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(500),
-  offset: z.coerce.number().int().min(0).default(0),
-});
+export const listSitesSchema = z
+  .object({
+    q: z.string().trim().max(MAX_SEARCH).optional(),
+    category: z.enum(SITE_CATEGORIES).optional(),
+    status: z.enum(SITE_STATUSES).optional(),
+    minLat: z.coerce.number().min(-90).max(90).optional(),
+    maxLat: z.coerce.number().min(-90).max(90).optional(),
+    minLng: z.coerce.number().min(-180).max(180).optional(),
+    maxLng: z.coerce.number().min(-180).max(180).optional(),
+    limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(500),
+    offset: z.coerce.number().int().min(0).default(0),
+  })
+  // A viewport is all-or-nothing: partial bounds would silently drop the filter.
+  .refine(
+    (query) => {
+      const bounds = [query.minLat, query.maxLat, query.minLng, query.maxLng];
+      const present = bounds.filter((value) => value !== undefined).length;
+      return present === 0 || present === 4;
+    },
+    { message: 'minLat, maxLat, minLng and maxLng must be provided together' },
+  );

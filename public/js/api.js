@@ -7,12 +7,13 @@ export class ApiError extends Error {
   }
 }
 
-async function request(method, path, body) {
+async function request(method, path, body, { signal } = {}) {
   const response = await fetch(path, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
     credentials: 'same-origin',
+    signal,
   });
   if (response.status === 204) return null;
   let payload = null;
@@ -34,7 +35,7 @@ export const api = {
   login: (data) => request('POST', '/api/auth/login', data),
   register: (data) => request('POST', '/api/auth/register', data),
   logout: () => request('POST', '/api/auth/logout'),
-  listSites: (params) => request('GET', `/api/sites?${new URLSearchParams(params)}`),
+  listSites: (params, options) => request('GET', `/api/sites?${new URLSearchParams(params)}`, undefined, options),
   createSite: (data) => request('POST', '/api/sites', data),
   updateSite: (id, data) => request('PUT', `/api/sites/${id}`, data),
   deleteSite: (id) => request('DELETE', `/api/sites/${id}`),

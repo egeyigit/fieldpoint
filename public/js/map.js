@@ -22,13 +22,14 @@ function pinIcon(category, status) {
 }
 
 /** Wraps Leaflet so the rest of the UI never touches L directly. */
-export function createMapView(element, { onSelect, onAddAt }) {
+export function createMapView(element, { onSelect, onAddAt, onViewChange }) {
   const map = L.map(element, { zoomControl: true }).setView(DEFAULT_VIEW.center, DEFAULT_VIEW.zoom);
   L.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(map);
   const layer = L.layerGroup().addTo(map);
   const markers = new Map();
 
   map.on('contextmenu', (event) => onAddAt(event.latlng.lat, event.latlng.lng));
+  if (onViewChange) map.on('moveend', onViewChange);
 
   // Leaflet only tracks window resizes. The container is laid out by CSS grid and
   // can change size (or be 0×0 on first paint) without a window resize, so
@@ -69,6 +70,15 @@ export function createMapView(element, { onSelect, onAddAt }) {
       if (sites.length === 0) return;
       const bounds = L.latLngBounds(sites.map((site) => [site.lat, site.lng]));
       whenSized(() => map.fitBounds(bounds.pad(0.2), { maxZoom: 13, animate: false }));
+    },
+    bounds() {
+      const b = map.getBounds();
+      return {
+        minLat: b.getSouth(),
+        maxLat: b.getNorth(),
+        minLng: b.getWest(),
+        maxLng: b.getEast(),
+      };
     },
     focus(id) {
       const marker = markers.get(id);

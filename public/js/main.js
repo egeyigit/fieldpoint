@@ -24,9 +24,11 @@ async function showApp(user) {
   $('#admin-tab').hidden = user.role !== 'admin';
 
   let sitesPanel = null;
+  const reloadForView = debounce(() => sitesPanel.refresh(), SEARCH_DEBOUNCE_MS);
   const mapView = createMapView($('#map'), {
     onSelect: (id) => sitesPanel.select(id),
     onAddAt: (lat, lng) => sitesPanel.openEditor(null, { lat: lat.toFixed(6), lng: lng.toFixed(6) }),
+    onViewChange: () => reloadForView(),
   });
   sitesPanel = createSitesPanel({ mapView, currentUser: user });
   const adminPanel = user.role === 'admin' ? createAdminPanel({ currentUser: user }) : null;

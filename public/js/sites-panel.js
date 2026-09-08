@@ -2,8 +2,8 @@ import { api, geocode } from './api.js';
 import { CATEGORIES, STATUSES } from './constants.js';
 import { $, fillSelect, formValues, toast } from './ui.js';
 
-const PAGE_SIZE = 1000;
-const MAX_SITES = 10000;
+const VIEWPORT_LIMIT = 1000;
+const SIDEBAR_PAGE_SIZE = 50;
 
 /** Sidebar list + editor dialog for sites. State lives here; map is notified via callbacks. */
 export function createSitesPanel({ mapView, currentUser }) {
@@ -12,7 +12,10 @@ export function createSitesPanel({ mapView, currentUser }) {
   const form = $('#site-form');
   const errorBox = $('#site-error');
   let sites = [];
+  let total = 0;
+  let visiblePages = 1;
   let selectedId = null;
+  let inFlight = null;
 
   fillSelect($('#filter-category'), Object.entries(CATEGORIES).map(([key, value]) => [key, value.label]), { keepFirst: true });
   fillSelect($('#filter-status'), Object.entries(STATUSES), { keepFirst: true });
@@ -32,7 +35,10 @@ export function createSitesPanel({ mapView, currentUser }) {
 
   function renderList() {
     list.replaceChildren();
-    $('#site-count').textContent = `${sites.length} site${sites.length === 1 ? '' : 's'}`;
+    $('#site-count').textContent =
+      total > sites.length
+        ? `${sites.length} of ${total} sites in view`
+        : `${sites.length} site${sites.length === 1 ? '' : 's'}`;
     $('#export-btn').href = `/api/sites/export.csv?${new URLSearchParams(currentFilters())}`;
     if (sites.length === 0) {
       const empty = document.createElement('li');
@@ -41,7 +47,8 @@ export function createSitesPanel({ mapView, currentUser }) {
       list.append(empty);
       return;
     }
-    for (const site of sites) {
+    const shown = sites.slice(0, visiblePages * SIDEBAR_PAGE_SIZE);
+    for (const site of shown) {
       const item = document.createElement('li');
       item.className = `site-item${site.id === selectedId ? ' selected' : ''}`;
       item.dataset.id = site.id;
@@ -73,6 +80,20 @@ export function createSitesPanel({ mapView, currentUser }) {
       item.addEventListener('dblclick', () => openEditor(site));
       list.append(item);
     }
+    if (shown.length < sites.length) {
+      const more = document.createElement('li');
+      more.className = 'site-item more';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'ghost small';
+      button.textContent = `Show more (${sites.length - shown.length} remaining)`;
+      button.addEventListener('click', () => {
+        visiblePages += 1;
+        renderList();
+      });
+      more.append(button);
+      list.append(more);
+    }
   }
 
   function select(id) {
@@ -81,33 +102,26 @@ export function createSitesPanel({ mapView, currentUser }) {
     mapView.focus(id);
   }
 
-  /** Pages through the API until every matching site is loaded (bounded by MAX_SITES). */
-  async function fetchAllSites(filters) {
-    const collected = [];
-    let offset = 0;
-    let total = Infinity;
-    while (offset < total && collected.length < MAX_SITES) {
-      const result = await api.listSites({ ...filters, limit: PAGE_SIZE, offset });
-      collected.push(...result.sites);
-      total = result.total;
-      offset += PAGE_SIZE;
-      if (result.sites.length === 0) break;
-    }
-    return { sites: collected, total };
-  }
-
   async function refresh({ fit = false } = {}) {
+    // Cancel any request the user or map has already moved past.
+    if (inFlight) inFlight.abort();
+    const controller = new AbortController();
+    inFlight = controller;
+    const params = { ...currentFilters(), limit: VIEWPORT_LIMIT, offset: 0, ...mapView.bounds() };
     try {
-      const result = await fetchAllSites(currentFilters());
+      const result = await api.listSites(params, { signal: controller.signal });
       sites = result.sites;
-      if (result.total > sites.length) {
-        toast(`Showing ${sites.length} of ${result.total} sites — narrow the filters to see the rest`, true);
-      }
+      total = result.total;
+      visiblePages = 1;
       renderList();
       mapView.render(sites);
       if (fit) mapView.fitAll(sites);
     } catch (error) {
+      // A superseded request was aborted on purpose; the newer one owns the UI.
+      if (error.name === 'AbortError') return;
       toast(error.message, true);
+    } finally {
+      if (inFlight === controller) inFlight = null;
     }
   }
 

@@ -16,7 +16,7 @@ export function createSiteRepository(db) {
     `SELECT category, status, COUNT(*) AS count FROM sites GROUP BY category, status`,
   );
 
-  function buildFilter({ q, category, status }) {
+  function buildFilter({ q, category, status, minLat, maxLat, minLng, maxLng }) {
     const clauses = [];
     const params = [];
     if (q) {
@@ -31,6 +31,14 @@ export function createSiteRepository(db) {
     if (status) {
       clauses.push(`s.status = ?`);
       params.push(status);
+    }
+    if (minLat !== undefined) {
+      clauses.push(`s.lat BETWEEN ? AND ?`);
+      params.push(minLat, maxLat);
+    }
+    if (minLng !== undefined) {
+      clauses.push(`s.lng BETWEEN ? AND ?`);
+      params.push(minLng, maxLng);
     }
     return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
   }

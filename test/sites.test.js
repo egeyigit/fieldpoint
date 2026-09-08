@@ -61,6 +61,20 @@ describe('sites', () => {
     assert.equal((await ctx.agent.get('/api/sites?category=nope')).status, 400);
   });
 
+  it('filters by viewport bounding box', async () => {
+    await ctx.agent.post('/api/sites').send({ ...SITE, name: 'Inside', lat: 40, lng: -100 });
+    await ctx.agent.post('/api/sites').send({ ...SITE, name: 'Outside', lat: 10, lng: 10 });
+
+    const inView = await ctx.agent.get('/api/sites?minLat=39&maxLat=41&minLng=-101&maxLng=-99');
+    assert.equal(inView.body.total, 1);
+    assert.equal(inView.body.sites[0].name, 'Inside');
+  });
+
+  it('rejects a partial viewport', async () => {
+    const response = await ctx.agent.get('/api/sites?minLat=39&maxLat=41&minLng=-101');
+    assert.equal(response.status, 400);
+  });
+
   it('paginates', async () => {
     for (let index = 0; index < 5; index += 1) {
       await ctx.agent.post('/api/sites').send({ ...SITE, name: `Site ${index}` });
