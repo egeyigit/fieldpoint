@@ -104,6 +104,16 @@ npm run test:coverage   # with V8 coverage report
 npm run lint            # syntax check + forbidden-statement scan
 ```
 
+## Backup
+
+SQLite runs in WAL mode, so **do not copy `data/fieldpoint.db` while the server is running** — the `-wal` file holds every commit since the last checkpoint and a raw file copy silently omits it, leaving a snapshot that is missing your most recent records. Use the backup command instead, which uses `VACUUM INTO` to produce a consistent snapshot even under concurrent writes:
+
+bash
+npm run backup                 # writes data/fieldpoint.db.backup-<timestamp>.db
+npm run backup -- backup.db    # explicit destination; refuses to overwrite
+npm run backup -- backup.db --force   # overwrite an existing file
+
+
 ## Atlantic Software Factory
 
 `factory.deploy.yml` declares the preview: one service built from the `Dockerfile`, port 4100,
