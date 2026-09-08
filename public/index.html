@@ -48,6 +48,14 @@
           <select id="filter-status" aria-label="Filter by status">
             <option value="">All statuses</option>
           </select>
+          <select id="sort-by" aria-label="Sort sites">
+            <option value="name:asc">Name (A–Z)</option>
+            <option value="name:desc">Name (Z–A)</option>
+            <option value="updated_at:desc">Recently updated</option>
+            <option value="updated_at:asc">Least recently updated</option>
+            <option value="created_at:desc">Newest</option>
+            <option value="created_at:asc">Oldest</option>
+          </select>
         </div>
         <div class="row between">
           <span class="muted" id="site-count">0 sites</span>

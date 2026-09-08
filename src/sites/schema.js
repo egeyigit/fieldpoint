@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const SITE_CATEGORIES = ['office', 'warehouse', 'client', 'job_site', 'vehicle', 'other'];
 export const SITE_STATUSES = ['active', 'inactive', 'planned'];
+export const SITE_ORDER_FIELDS = ['name', 'created_at', 'updated_at'];
+export const SITE_ORDER_DIRECTIONS = ['asc', 'desc'];
 
 const MAX_NAME = 120;
 const MAX_ADDRESS = 300;
@@ -40,4 +42,6 @@ export const listSitesSchema = z.object({
   status: z.enum(SITE_STATUSES).optional(),
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(500),
   offset: z.coerce.number().int().min(0).default(0),
+  orderBy: z.enum(SITE_ORDER_FIELDS).default('name'),
+  orderDir: z.enum(SITE_ORDER_DIRECTIONS).default('asc'),
 });

@@ -5,6 +5,21 @@ const FROM = `FROM sites s LEFT JOIN users cu ON cu.id = s.created_by LEFT JOIN 
 
 const UPDATABLE = ['name', 'address', 'lat', 'lng', 'category', 'status', 'notes'];
 
+// Maps the validated orderBy value to a physical column. Any value outside this
+// map is rejected by the schema before it reaches here, so the clause is never
+// built from untrusted input.
+const ORDER_COLUMNS = {
+  name: 's.name COLLATE NOCASE',
+  created_at: 's.created_at',
+  updated_at: 's.updated_at',
+};
+
+function orderClause({ orderBy = 'name', orderDir = 'asc' } = {}) {
+  const column = ORDER_COLUMNS[orderBy] ?? ORDER_COLUMNS.name;
+  const direction = orderDir === 'desc' ? 'DESC' : 'ASC';
+  return `ORDER BY ${column} ${direction}`;
+}
+
 export function createSiteRepository(db) {
   const byId = db.prepare(`SELECT ${COLUMNS} ${FROM} WHERE s.id = ?`);
   const insert = db.prepare(
@@ -40,7 +55,7 @@ export function createSiteRepository(db) {
     list(filters) {
       const { where, params } = buildFilter(filters);
       const rows = db
-        .prepare(`SELECT ${COLUMNS} ${FROM} ${where} ORDER BY s.name COLLATE NOCASE LIMIT ? OFFSET ?`)
+        .prepare(`SELECT ${COLUMNS} ${FROM} ${where} ${orderClause(filters)} LIMIT ? OFFSET ?`)
         .all(...params, filters.limit, filters.offset);
       const { total } = db.prepare(`SELECT COUNT(*) AS total FROM sites s ${where}`).get(...params);
       return { rows, total };
@@ -48,7 +63,7 @@ export function createSiteRepository(db) {
     /** Every matching row, no pagination — for exports. */
     listAll(filters) {
       const { where, params } = buildFilter(filters);
-      return db.prepare(`SELECT ${COLUMNS} ${FROM} ${where} ORDER BY s.name COLLATE NOCASE`).all(...params);
+      return db.prepare(`SELECT ${COLUMNS} ${FROM} ${where} ${orderClause(filters)}`).all(...params);
     },
     create(data, userId) {
       const result = insert.run(

@@ -27,6 +27,31 @@ export function formValues(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+const RELATIVE_UNITS = [
+  ['year', 365 * 24 * 60 * 60],
+  ['month', 30 * 24 * 60 * 60],
+  ['day', 24 * 60 * 60],
+  ['hour', 60 * 60],
+  ['minute', 60],
+  ['second', 1],
+];
+
+/** Human-readable "3 hours ago" style string, or '' when the timestamp is unusable. */
+export function relativeTime(value) {
+  if (!value) return '';
+  const then = new Date(value).getTime();
+  if (Number.isNaN(then)) return '';
+  const seconds = Math.round((then - Date.now()) / 1000);
+  const absolute = Math.abs(seconds);
+  for (const [unit, size] of RELATIVE_UNITS) {
+    if (absolute >= size || unit === 'second') {
+      return RELATIVE.format(Math.round(seconds / size), unit);
+    }
+  }
+  return '';
+}
+
 export function debounce(fn, ms) {
   let timer = null;
   return (...args) => {

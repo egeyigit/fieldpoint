@@ -1,4 +1,5 @@
 import { CATEGORIES, DEFAULT_VIEW } from './constants.js';
+import { relativeTime } from './ui.js';
 
 const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
@@ -56,9 +57,13 @@ export function createMapView(element, { onSelect, onAddAt }) {
       markers.clear();
       for (const site of sites) {
         const marker = L.marker([site.lat, site.lng], { icon: pinIcon(site.category, site.status), title: site.name });
+        const when = relativeTime(site.updatedAt);
+        const editor = site.updatedByName || 'someone';
+        const meta = when ? `<br><small style="opacity:.7">Updated ${escapeHtml(when)} by ${escapeHtml(editor)}</small>` : '';
         marker.bindPopup(
           `<b>${escapeHtml(site.name)}</b><br><span style="opacity:.7">${escapeHtml(site.address || '—')}</span>` +
-            `<br><small>${escapeHtml(CATEGORIES[site.category]?.label ?? site.category)} · ${escapeHtml(site.status)}</small>`,
+            `<br><small>${escapeHtml(CATEGORIES[site.category]?.label ?? site.category)} · ${escapeHtml(site.status)}</small>` +
+            meta,
         );
         marker.on('click', () => onSelect(site.id));
         marker.addTo(layer);

@@ -1,6 +1,6 @@
 import { api, geocode } from './api.js';
 import { CATEGORIES, STATUSES } from './constants.js';
-import { $, fillSelect, formValues, toast } from './ui.js';
+import { $, fillSelect, formValues, relativeTime, toast } from './ui.js';
 
 const PAGE_SIZE = 1000;
 const MAX_SITES = 10000;
@@ -27,6 +27,9 @@ export function createSitesPanel({ mapView, currentUser }) {
     if (q) params.q = q;
     if (category) params.category = category;
     if (status) params.status = status;
+    const [orderBy, orderDir] = ($('#sort-by').value || 'name:asc').split(':');
+    params.orderBy = orderBy;
+    params.orderDir = orderDir;
     return params;
   }
 
@@ -68,7 +71,12 @@ export function createSitesPanel({ mapView, currentUser }) {
       const sub = document.createElement('div');
       sub.className = 'sub';
       sub.textContent = `${CATEGORIES[site.category]?.label ?? site.category} · ${site.address || `${site.lat.toFixed(4)}, ${site.lng.toFixed(4)}`}`;
-      item.append(title, sub);
+      const when = relativeTime(site.updatedAt);
+      const meta = document.createElement('div');
+      meta.className = 'sub muted';
+      meta.textContent = when ? `Updated ${when} by ${site.updatedByName || 'someone'}` : '';
+      meta.hidden = !when;
+      item.append(title, sub, meta);
       item.addEventListener('click', () => select(site.id));
       item.addEventListener('dblclick', () => openEditor(site));
       list.append(item);
@@ -115,6 +123,19 @@ export function createSitesPanel({ mapView, currentUser }) {
     form.reset();
     errorBox.textContent = '';
     $('#site-dialog-title').textContent = site ? 'Edit site' : 'New site';
+    const timeline = $('#site-timeline');
+    if (site) {
+      const created = relativeTime(site.createdAt);
+      const updated = relativeTime(site.updatedAt);
+      const parts = [];
+      if (created) parts.push(`Created ${created} by ${site.createdByName || 'someone'}`);
+      if (updated) parts.push(`updated ${updated} by ${site.updatedByName || 'someone'}`);
+      timeline.textContent = parts.join(' · ');
+      timeline.hidden = parts.length === 0;
+    } else {
+      timeline.textContent = '';
+      timeline.hidden = true;
+    }
     $('#delete-btn').hidden = !(site && currentUser.role === 'admin');
     const values = site ?? { category: 'client', status: 'active', ...preset };
     for (const [key, value] of Object.entries(values)) {
