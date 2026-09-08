@@ -45,9 +45,13 @@ export function createSitesPanel({ mapView, currentUser }) {
   function renderRow(site) {
     const item = document.createElement('li');
     const isDeleted = Boolean(site.deletedAt);
-    item.className = `site-item${site.id === selectedId ? ' selected' : ''}${isDeleted ? ' deleted' : ''}`;
+    const isSelected = site.id === selectedId;
+    item.className = `site-item${isSelected ? ' selected' : ''}${isDeleted ? ' deleted' : ''}`;
     item.tabIndex = 0;
     item.dataset.id = site.id;
+    item.setAttribute('role', 'option');
+    item.setAttribute('aria-selected', String(isSelected));
+    item.setAttribute('aria-label', `Select ${site.name}`);
 
     const title = document.createElement('div');
     title.className = 'title';
