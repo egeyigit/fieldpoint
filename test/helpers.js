@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import request from 'supertest';
 import { loadConfig } from '../src/config.js';
 import { createApp } from '../src/app.js';
@@ -8,9 +11,20 @@ export const SITE = { name: 'HQ', address: '1 Main St', lat: 40.7128, lng: -74.0
 
 /** Fresh in-memory app per test. Returns an agent that keeps cookies. */
 export function bootApp() {
-  const config = loadConfig({ NODE_ENV: 'test', DB_PATH: ':memory:', SESSION_SECRET: 'x'.repeat(40) });
+  const uploadsDir = mkdtempSync(join(tmpdir(), 'fieldpoint-uploads-'));
+  const config = loadConfig({ NODE_ENV: 'test', DB_PATH: ':memory:', SESSION_SECRET: 'x'.repeat(40), UPLOADS_DIR: uploadsDir });
   const { app, db } = createApp(config);
-  return { app, db, agent: request.agent(app), close: () => db.close() };
+  const storageNameOf = db.prepare('SELECT storage_name AS storageName FROM site_attachments WHERE id = ?');
+  return {
+    app,
+    db,
+    agent: request.agent(app),
+    attachmentPath: (id) => join(uploadsDir, storageNameOf.get(id).storageName),
+    close: () => {
+      db.close();
+      rmSync(uploadsDir, { recursive: true, force: true });
+    },
+  };
 }
 
 export async function registerAdmin(agent) {

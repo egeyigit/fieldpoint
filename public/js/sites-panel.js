@@ -111,6 +111,74 @@ export function createSitesPanel({ mapView, currentUser }) {
     }
   }
 
+  async function renderAttachments(siteId) {
+    const strip = $('#attachment-strip');
+    strip.replaceChildren();
+    let items = [];
+    try {
+      const result = await api.listAttachments(siteId);
+      items = result.attachments;
+    } catch (error) {
+      errorBox.textContent = error.message;
+      return;
+    }
+    for (const attachment of items) {
+      const tile = document.createElement('div');
+      tile.className = 'attachment-tile';
+      const url = api.attachmentUrl(siteId, attachment.id);
+      if (attachment.mimeType.startsWith('image/')) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = attachment.filename;
+        tile.append(img);
+      } else {
+        const doc = document.createElement('span');
+        doc.className = 'doc';
+        doc.textContent = 'PDF';
+        tile.append(doc);
+      }
+      const link = document.createElement('a');
+      link.href = url;
+      link.textContent = attachment.filename;
+      link.title = attachment.filename;
+      tile.append(link);
+      if (currentUser.role === 'admin') {
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'remove';
+        remove.textContent = '\u00d7';
+        remove.setAttribute('aria-label', `Delete ${attachment.filename}`);
+        remove.addEventListener('click', async () => {
+          try {
+            await api.deleteAttachment(siteId, attachment.id);
+            await renderAttachments(siteId);
+          } catch (error) {
+            errorBox.textContent = error.message;
+          }
+        });
+        tile.append(remove);
+      }
+      strip.append(tile);
+    }
+  }
+
+  async function uploadAttachment() {
+    const siteId = form.elements.id.value;
+    if (!siteId) return;
+    const input = $('#attachment-input');
+    const file = input.files[0];
+    if (!file) return (errorBox.textContent = 'Choose a file first');
+    errorBox.textContent = '';
+    try {
+      await api.uploadAttachment(siteId, file);
+      input.value = '';
+      toast('File uploaded');
+      await renderAttachments(siteId);
+    } catch (error) {
+      errorBox.textContent = error.message;
+    }
+  }
+
   function openEditor(site = null, preset = {}) {
     form.reset();
     errorBox.textContent = '';
@@ -120,6 +188,9 @@ export function createSitesPanel({ mapView, currentUser }) {
     for (const [key, value] of Object.entries(values)) {
       if (form.elements[key]) form.elements[key].value = value ?? '';
     }
+    const attachmentsField = $('#attachments-field');
+    attachmentsField.hidden = !site;
+    if (site) renderAttachments(site.id);
     dialog.showModal();
   }
 
@@ -174,6 +245,7 @@ export function createSitesPanel({ mapView, currentUser }) {
   $('#cancel-btn').addEventListener('click', () => dialog.close());
   $('#delete-btn').addEventListener('click', deleteCurrent);
   $('#geocode-btn').addEventListener('click', locateAddress);
+  $('#attachment-upload-btn').addEventListener('click', uploadAttachment);
   $('#add-btn').addEventListener('click', () => openEditor());
 
   return { refresh, select, openEditor };

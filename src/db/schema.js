@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -42,6 +42,18 @@ CREATE TABLE IF NOT EXISTS sites (
 );
 CREATE INDEX IF NOT EXISTS idx_sites_category ON sites(category);
 CREATE INDEX IF NOT EXISTS idx_sites_status ON sites(status);
+
+CREATE TABLE IF NOT EXISTS site_attachments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+  filename TEXT NOT NULL,
+  storage_name TEXT NOT NULL UNIQUE,
+  mime_type TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_attachments_site ON site_attachments(site_id);
 
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

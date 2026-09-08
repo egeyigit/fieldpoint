@@ -38,10 +38,30 @@ export const api = {
   createSite: (data) => request('POST', '/api/sites', data),
   updateSite: (id, data) => request('PUT', `/api/sites/${id}`, data),
   deleteSite: (id) => request('DELETE', `/api/sites/${id}`),
+  listAttachments: (siteId) => request('GET', `/api/sites/${siteId}/attachments`),
+  uploadAttachment: (siteId, file) => uploadFile(`/api/sites/${siteId}/attachments`, file),
+  attachmentUrl: (siteId, attachmentId) => `/api/sites/${siteId}/attachments/${attachmentId}`,
+  deleteAttachment: (siteId, attachmentId) => request('DELETE', `/api/sites/${siteId}/attachments/${attachmentId}`),
   listUsers: () => request('GET', '/api/users'),
   updateUser: (id, data) => request('PATCH', `/api/users/${id}`, data),
   audit: () => request('GET', '/api/users/audit?limit=50'),
 };
+
+async function uploadFile(path, file) {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  const response = await fetch(path, { method: 'POST', body: form, credentials: 'same-origin' });
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, payload?.error ?? `Upload failed (${response.status})`, payload?.details);
+  }
+  return payload;
+}
 
 /** Public geocoder (OpenStreetMap Nominatim). Rate-limited upstream: 1 req/s. */
 export async function geocode(query) {

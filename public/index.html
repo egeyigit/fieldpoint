@@ -101,6 +101,15 @@
           <label>Status<select name="status" id="form-status"></select></label>
         </div>
         <label>Notes<textarea name="notes" rows="3" maxlength="2000"></textarea></label>
+        <fieldset id="attachments-field" class="attachments" hidden>
+          <legend>Files</legend>
+          <div id="attachment-strip" class="attachment-strip" aria-label="Attached files"></div>
+          <div class="row gap">
+            <input type="file" id="attachment-input" accept="image/*,application/pdf" aria-label="Choose file to upload" />
+            <button type="button" id="attachment-upload-btn" class="ghost small">Upload</button>
+          </div>
+          <p class="hint">Images or PDF, up to 5 MB each.</p>
+        </fieldset>
         <p class="error" id="site-error" role="alert"></p>
         <div class="row between">
           <button type="button" id="delete-btn" class="danger small" hidden>Delete</button>

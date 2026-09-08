@@ -11,6 +11,7 @@ import { createAuthRouter } from './auth/routes.js';
 import { createUserRepository } from './users/repository.js';
 import { createUserRouter } from './users/routes.js';
 import { createSiteRepository } from './sites/repository.js';
+import { createAttachmentRepository } from './sites/attachments/repository.js';
 import { createSiteRouter } from './sites/routes.js';
 import { originCheck } from './middleware/security.js';
 import { errorHandler, notFoundHandler } from './middleware/errors.js';
@@ -32,7 +33,8 @@ export function createApp(config) {
   const sessions = createSessionStore(db, { secret: config.sessionSecret, ttlMs: config.sessionTtlMs });
   const users = createUserRepository(db);
   const sites = createSiteRepository(db);
-  const deps = { db, sessions, users, sites, config };
+  const attachments = createAttachmentRepository(db, config.uploadsDir);
+  const deps = { db, sessions, users, sites, attachments, config };
 
   const app = express();
   app.disable('x-powered-by');

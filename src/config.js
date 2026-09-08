@@ -58,6 +58,17 @@ function resolveDbPath(dbPath) {
   return resolve(PROJECT_ROOT, dbPath);
 }
 
+/**
+ * Attachments live next to the database in a writable data directory. For an
+ * in-memory database (tests) fall back to a temp directory under the project.
+ */
+function resolveUploadsDir(env, dbPath) {
+  const provided = env.UPLOADS_DIR?.trim();
+  if (provided) return isAbsolute(provided) ? provided : resolve(PROJECT_ROOT, provided);
+  if (dbPath === ':memory:') return resolve(PROJECT_ROOT, 'data', 'uploads-test');
+  return resolve(dirname(dbPath), 'uploads');
+}
+
 function parseOrigins(value) {
   if (!value) return [];
   return value
@@ -76,6 +87,7 @@ export function loadConfig(env = process.env) {
     port: parseIntOr(env.PORT, DEFAULT_PORT),
     host: env.HOST?.trim() || '0.0.0.0',
     dbPath,
+    uploadsDir: resolveUploadsDir(env, dbPath),
     sessionSecret: resolveSessionSecret(env, dbPath),
     sessionTtlMs: parseIntOr(env.SESSION_TTL_HOURS, DEFAULT_SESSION_TTL_HOURS) * 60 * 60 * 1000,
     allowedOrigins: parseOrigins(env.ALLOWED_ORIGINS),

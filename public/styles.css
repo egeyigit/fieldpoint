@@ -88,6 +88,16 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 dialog form { display: grid; gap: 10px; }
 dialog h3 { margin: 0 0 4px; }
 
+.attachments { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; display: grid; gap: 8px; }
+.attachments legend { color: var(--muted); font-size: 12px; padding: 0 4px; }
+.attachment-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+.attachment-strip:empty::before { content: "No files yet."; color: var(--muted); font-size: 12px; }
+.attachment-tile { position: relative; border: 1px solid var(--line); border-radius: var(--radius); width: 72px; padding: 4px; display: grid; gap: 2px; text-align: center; }
+.attachment-tile img { width: 64px; height: 48px; object-fit: cover; border-radius: 3px; display: block; }
+.attachment-tile .doc { width: 64px; height: 48px; display: grid; place-items: center; background: var(--surface-2); border-radius: 3px; font-size: 11px; color: var(--muted); }
+.attachment-tile a { font-size: 10px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.attachment-tile .remove { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; padding: 0; border-radius: 50%; font-size: 12px; line-height: 1; color: var(--red); border-color: var(--red); background: var(--surface); }
+
 .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--surface-2); border: 1px solid var(--line); padding: 8px 14px; border-radius: var(--radius); z-index: 2000; }
 .toast.err { border-color: var(--red); }
 
