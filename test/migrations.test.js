@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { LATEST_VERSION, MIGRATIONS } from '../src/db/migrations/index.js';
-import { openDatabase, runMigrations } from '../src/db/connection.js';
+import { openDatabase, runMigrations, rollbackMigrations, migrationHistory } from '../src/db/connection.js';
 
 const tableNames = (db) =>
   db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`).all().map((row) => row.name);
@@ -61,6 +61,67 @@ describe('migrations', () => {
       const site = db.prepare('SELECT assigned_to, deleted_at FROM sites').get();
       assert.equal(site.assigned_to, null);
       assert.equal(site.deleted_at, null);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('records every applied migration in schema_migrations', () => {
+    const db = openDatabase(':memory:');
+    try {
+      const history = migrationHistory(db);
+      assert.deepEqual(
+        history.map((row) => row.version),
+        MIGRATIONS.map((migration) => migration.version),
+      );
+      assert.deepEqual(
+        history.map((row) => row.name),
+        MIGRATIONS.map((migration) => migration.name),
+      );
+      for (const row of history) assert.ok(row.applied_at, 'applied_at must be stamped');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('backfills history for a version-only database', () => {
+    const db = new DatabaseSync(':memory:');
+    try {
+      db.exec('CREATE TABLE schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+      MIGRATIONS[0].up(db);
+      MIGRATIONS[1].up(db);
+      db.prepare(`INSERT INTO schema_meta (key, value) VALUES ('version', '2')`).run();
+      // No schema_migrations table at all — the legacy shape.
+      const history = migrationHistory(db);
+      assert.deepEqual(history.map((row) => row.version), [1, 2]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rolls back a reversible migration, dropping its tables and history row', () => {
+    const db = openDatabase(':memory:');
+    try {
+      const result = rollbackMigrations(db, 2);
+      assert.equal(result.from, LATEST_VERSION);
+      assert.equal(result.to, 2);
+      assert.equal(result.reverted, 1);
+      assert.ok(!tableNames(db).includes('work_orders'), 'work_orders must be dropped');
+      assert.equal(Number(db.prepare(`SELECT value FROM schema_meta WHERE key = 'version'`).get().value), 2);
+      assert.deepEqual(migrationHistory(db).map((row) => row.version), [1, 2]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('refuses to roll back across an irreversible migration', () => {
+    const db = openDatabase(':memory:');
+    try {
+      // Migration 2 declares no down(); rolling back below it must be refused,
+      // leaving the database untouched at the latest version.
+      assert.throws(() => rollbackMigrations(db, 1), /migration 2 .* is irreversible/);
+      assert.equal(Number(db.prepare(`SELECT value FROM schema_meta WHERE key = 'version'`).get().value), LATEST_VERSION);
+      assert.ok(tableNames(db).includes('work_orders'), 'refused rollback must undo nothing');
     } finally {
       db.close();
     }

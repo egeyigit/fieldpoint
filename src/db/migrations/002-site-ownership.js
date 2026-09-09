@@ -12,6 +12,10 @@ CREATE INDEX IF NOT EXISTS idx_sites_deleted ON sites(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_sites_bbox ON sites(lat, lng);
 `;
 
+// No down(): the SQLite build in use cannot DROP the columns this migration
+// adds to `sites` without rewriting the table, so this migration is
+// irreversible on purpose. Rolling back to a version below 2 is refused
+// rather than silently skipped.
 export const migration002SiteOwnership = {
   version: 2,
   name: 'site-ownership-and-soft-delete',
