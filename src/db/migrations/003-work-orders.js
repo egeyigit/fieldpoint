@@ -36,10 +36,18 @@ CREATE TABLE IF NOT EXISTS work_order_comments (
 CREATE INDEX IF NOT EXISTS idx_wo_comments_order ON work_order_comments(work_order_id);
 `;
 
+const DOWN_SQL = `
+DROP TABLE IF EXISTS work_order_comments;
+DROP TABLE IF EXISTS work_orders;
+`;
+
 export const migration003WorkOrders = {
   version: 3,
   name: 'work-orders',
   up(db) {
     db.exec(SQL);
+  },
+  down(db) {
+    db.exec(DOWN_SQL);
   },
 };

@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { LATEST_VERSION, MIGRATIONS } from '../src/db/migrations/index.js';
-import { openDatabase, runMigrations } from '../src/db/connection.js';
+import { migrationStatus, openDatabase, rollbackMigrations, runMigrations } from '../src/db/connection.js';
 
 const tableNames = (db) =>
   db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`).all().map((row) => row.name);
@@ -22,6 +22,67 @@ describe('migrations', () => {
       }
       const version = db.prepare(`SELECT value FROM schema_meta WHERE key = 'version'`).get().value;
       assert.equal(Number(version), LATEST_VERSION);
+      // Every migration is recorded individually in the history table.
+      const recorded = db.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map((row) => Number(row.version));
+      assert.deepEqual(recorded, MIGRATIONS.map((migration) => migration.version));
+    } finally {
+      db.close();
+    }
+  });
+
+  it('backfills schema_migrations from a bare version key', () => {
+    const db = new DatabaseSync(':memory:');
+    try {
+      db.exec('CREATE TABLE schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+      MIGRATIONS[0].up(db);
+      MIGRATIONS[1].up(db);
+      db.prepare(`INSERT INTO schema_meta (key, value) VALUES ('version', '2')`).run();
+
+      const status = migrationStatus(db);
+      assert.deepEqual(
+        status.filter((row) => row.applied).map((row) => row.version),
+        [1, 2],
+      );
+      // The pending migration is applied on top without re-running the first two.
+      const result = runMigrations(db);
+      assert.equal(result.from, 2);
+      assert.equal(result.to, LATEST_VERSION);
+      assert.equal(result.applied, MIGRATIONS.length - 2);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('rolls a database back to an earlier version', () => {
+    const db = openDatabase(':memory:');
+    try {
+      const result = rollbackMigrations(db, 1);
+      assert.equal(result.from, LATEST_VERSION);
+      assert.equal(result.to, 1);
+      assert.equal(result.reverted, MIGRATIONS.length - 1);
+      assert.ok(!tableNames(db).includes('work_orders'), 'reverted table must be gone');
+      const version = db.prepare(`SELECT value FROM schema_meta WHERE key = 'version'`).get().value;
+      assert.equal(Number(version), 1);
+      // Re-applying brings it back up to head.
+      const back = runMigrations(db);
+      assert.equal(back.to, LATEST_VERSION);
+      assert.ok(tableNames(db).includes('work_orders'));
+    } finally {
+      db.close();
+    }
+  });
+
+  it('refuses to roll back a migration that declares itself irreversible', () => {
+    const db = new DatabaseSync(':memory:');
+    try {
+      db.exec('CREATE TABLE schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+      db.exec(`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL DEFAULT '')`);
+      MIGRATIONS[0].up(db);
+      db.prepare(`INSERT INTO schema_migrations (version, name, applied_at) VALUES (1, 'baseline', 'x')`).run();
+      // A phantom applied migration with no down() must be refused, not skipped.
+      db.prepare(`INSERT INTO schema_migrations (version, name, applied_at) VALUES (99, 'phantom', 'x')`).run();
+      db.prepare(`INSERT INTO schema_meta (key, value) VALUES ('version', '99')`).run();
+      assert.throws(() => rollbackMigrations(db, 1), /unknown to this build|irreversible/);
     } finally {
       db.close();
     }

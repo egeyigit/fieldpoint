@@ -48,10 +48,20 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
 `;
 
+const DOWN_SQL = `
+DROP TABLE IF EXISTS audit_log;
+DROP TABLE IF EXISTS sites;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS users;
+`;
+
 export const migration001Baseline = {
   version: 1,
   name: 'baseline',
   up(db) {
     db.exec(SQL);
+  },
+  down(db) {
+    db.exec(DOWN_SQL);
   },
 };

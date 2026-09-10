@@ -17,7 +17,7 @@ Built to be boring and dependable: Node.js + Express 5, SQLite through the Node 
 - **Audit log** — every login, user change and site mutation is recorded and visible to admins.
 - **Hardening** — Helmet CSP, same-origin check on all mutations (CSRF), zod validation on every input, JSON body limit, global + login rate limits, JSON 404/500 envelopes that never leak stack traces.
 - **Observability** — one structured JSON log line per request (no bodies, cookies or credentials), an `x-request-id` on every response, and a health check that actually queries the database.
-- **Migrations** — numbered, transactional migrations in `src/db/migrations/`; an older database upgrades on boot and a newer one is refused.
+- **Migrations** — numbered, reversible, transactional migrations in `src/db/migrations/`; an older database upgrades on boot and a newer one is refused. Each applied migration is recorded per-version in a `schema_migrations` table (databases predating it are backfilled from the old bare `version` key), and an operator CLI (`npm run migrate -- status | up | down --to <version>`) reports and changes state; a `down --to` that would reverse a migration declaring itself irreversible is refused rather than silently skipped.
 
 > **Mock application.** Demo credentials and the session secret are committed on purpose
 > (`.env`, `Dockerfile`) so the app boots anywhere with zero setup. Do not reuse them for real data.
