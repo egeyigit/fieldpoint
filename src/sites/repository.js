@@ -1,4 +1,4 @@
-import { boundingBox, haversineKm } from './geo.js';
+import { EARTH_RADIUS_KM, boundingBox, haversineKm } from './geo.js';
 
 const COLUMNS = `s.id, s.name, s.address, s.lat, s.lng, s.category, s.status, s.notes,
   s.assigned_to AS assignedTo, s.created_by AS createdBy, s.updated_by AS updatedBy,
@@ -19,7 +19,26 @@ const ORDER_BY_SORT = {
   updated: 's.updated_at DESC, s.id DESC',
 };
 
+// The SQL bindings, in order, are nearLat, nearLat, nearLng, nearLat: the same
+// great-circle formula as haversineKm, so a native-trig SQLite build returns
+// exactly the JS distances the fixtures pin.
+const DISTANCE_SQL = `(2 * ${EARTH_RADIUS_KM} * asin(min(1, sqrt(
+  pow(sin(radians(s.lat - ?) / 2), 2) +
+  cos(radians(?)) * cos(radians(s.lat)) * pow(sin(radians(s.lng - ?) / 2), 2)
+))))`;
+
+/** Whether this SQLite build exposes the trig functions DISTANCE_SQL needs. */
+function supportsDistanceSql(db) {
+  try {
+    db.prepare('SELECT radians(?) + sin(?) + cos(?) + asin(?)').get(0, 0, 0, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function createSiteRepository(db) {
+  const distanceInSql = supportsDistanceSql(db);
   const byId = db.prepare(`SELECT ${COLUMNS} ${FROM} WHERE s.id = ?`);
   const insert = db.prepare(
     `INSERT INTO sites (name, address, lat, lng, category, status, notes, assigned_to, created_by, updated_by)
@@ -107,8 +126,27 @@ export function createSiteRepository(db) {
     list(filters) {
       const { where, params } = buildFilter(filters);
       const order = ORDER_BY_SORT[filters.sort] ?? ORDER_BY_SORT.name;
-      // A radius query filters exact distances in JS, so paginate after that.
       if (filters.radiusKm !== undefined) {
+        if (distanceInSql) {
+          // The bounding box in `where` still prunes rows with the lat/lng
+          // index; the exact distance filter, ordering, and pagination all run
+          // in SQL so only one page of rows is ever loaded.
+          const distanceParams = [filters.nearLat, filters.nearLat, filters.nearLng, filters.nearLat];
+          const radiusWhere = where ? `${where} AND ${DISTANCE_SQL} <= ?` : `WHERE ${DISTANCE_SQL} <= ?`;
+          const distanceOrder = filters.sort === 'distance' ? 'distanceKm ASC, s.id ASC' : order;
+          const rows = db
+            .prepare(
+              `SELECT ${COLUMNS}, ${DISTANCE_SQL} AS distanceKm ${FROM} ${radiusWhere}` +
+                ` ORDER BY ${distanceOrder} LIMIT ? OFFSET ?`,
+            )
+            .all(...distanceParams, ...params, ...distanceParams, filters.radiusKm, filters.limit, filters.offset);
+          const { total } = db
+            .prepare(`SELECT COUNT(*) AS total ${FROM} ${radiusWhere}`)
+            .get(...params, ...distanceParams, filters.radiusKm);
+          return { rows, total };
+        }
+        // Fallback for SQLite builds without native trig: filter exact
+        // distances in JS, so paginate after that.
         const all = sortRows(
           applyRadius(db.prepare(`SELECT ${COLUMNS} ${FROM} ${where} ORDER BY ${order}`).all(...params), filters),
           filters.sort,

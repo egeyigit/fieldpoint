@@ -1,4 +1,4 @@
-const EARTH_RADIUS_KM = 6371;
+export const EARTH_RADIUS_KM = 6371;
 const DEGREES_PER_RADIAN = 180 / Math.PI;
 const KM_PER_DEGREE_LAT = 111.32;
 const MIN_COS = 0.01; // guard against division by zero near the poles
