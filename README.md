@@ -59,6 +59,7 @@ Copy `.env.example` to `.env` (or export variables). All optional in development
 | `SESSION_TTL_HOURS` | `72` | Session lifetime |
 | `NODE_ENV` | `development` | `production` enables secure cookies + trust-proxy |
 | `ALLOWED_ORIGINS` | same-origin only | Comma-separated extra origins allowed to mutate |
+| `SITE_PURGE_AFTER_DAYS` | unset (auto-purge off) | Days a soft-deleted site is kept before the boot/timer sweeper hard-deletes it |
 
 `npm start` loads `.env` when present (`--env-file-if-exists`).
 
@@ -79,7 +80,7 @@ All routes return `{ ok: boolean, ... }`. Errors: `{ ok: false, error, details? 
 | GET | `/api/sites/export.csv` | user | CSV export (same filters) |
 | GET/POST | `/api/sites`, `/api/sites/:id` | user | Read / create |
 | PATCH | `/api/sites/:id` | user | Partial update (`PUT` is kept as an alias) |
-| DELETE | `/api/sites/:id` | admin | Soft delete |
+| DELETE | `/api/sites/:id` | admin | Soft delete; `?purge=true` hard-deletes an already-soft-deleted site (cascades work orders + comments) |
 | POST | `/api/sites/:id/restore` | admin | Restore a soft-deleted site |
 | GET | `/api/work-orders` | user | List; `siteId`, `status`, `priority`, `assignedTo`, `openOnly`, `overdue`, `q`, `sort` |
 | GET | `/api/work-orders/summary` | user | Counts by status × priority |

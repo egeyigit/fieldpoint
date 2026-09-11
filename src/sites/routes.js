@@ -14,6 +14,13 @@ const includeDeletedSchema = z.object({
     .default(false),
 });
 
+const deleteSiteSchema = z.object({
+  purge: z
+    .union([z.boolean(), z.enum(['true', 'false'])])
+    .transform((value) => value === true || value === 'true')
+    .default(false),
+});
+
 export function createSiteRouter({ db, sites, users }) {
   const router = Router();
   router.use(requireAuth);
@@ -110,17 +117,36 @@ export function createSiteRouter({ db, sites, users }) {
   // Kept as an alias: this API has always applied partial updates on PUT.
   router.put('/:id', validate(siteIdSchema, 'params'), validate(updateSiteSchema), applyUpdate);
 
-  router.delete('/:id', requireRole('admin'), validate(siteIdSchema, 'params'), (req, res, next) => {
-    const { id } = req.validated.params;
-    const existing = sites.findVisibleById(id);
-    if (!existing) return next(new HttpError(404, 'Site not found'));
-    sites.softDelete(id, req.user.id);
-    recordAudit(db, {
-      userId: req.user.id, action: 'site.delete', entityType: 'site', entityId: id,
-      details: { name: existing.name },
-    });
-    return res.status(204).end();
-  });
+  router.delete(
+    '/:id',
+    requireRole('admin'),
+    validate(siteIdSchema, 'params'),
+    validate(deleteSiteSchema, 'query'),
+    (req, res, next) => {
+      const { id } = req.validated.params;
+      // Hard delete empties the recycle bin: the site must already be soft-deleted,
+      // and the row (with its cascaded work orders and comments) is destroyed.
+      if (req.validated.query.purge) {
+        const existing = sites.findById(id);
+        if (!existing) return next(new HttpError(404, 'Site not found'));
+        if (existing.deletedAt === null) return next(new HttpError(409, 'Site must be deleted before it can be purged'));
+        sites.purge(id);
+        recordAudit(db, {
+          userId: req.user.id, action: 'site.purge', entityType: 'site', entityId: id,
+          details: { name: existing.name },
+        });
+        return res.status(204).end();
+      }
+      const existing = sites.findVisibleById(id);
+      if (!existing) return next(new HttpError(404, 'Site not found'));
+      sites.softDelete(id, req.user.id);
+      recordAudit(db, {
+        userId: req.user.id, action: 'site.delete', entityType: 'site', entityId: id,
+        details: { name: existing.name },
+      });
+      return res.status(204).end();
+    },
+  );
 
   router.post('/:id/restore', requireRole('admin'), validate(siteIdSchema, 'params'), (req, res, next) => {
     const { id } = req.validated.params;

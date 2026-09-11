@@ -34,6 +34,10 @@ export function createSiteRepository(db) {
      updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by = ?
      WHERE id = ? AND deleted_at IS NOT NULL`,
   );
+  const purge = db.prepare('DELETE FROM sites WHERE id = ? AND deleted_at IS NOT NULL');
+  const purgeExpired = db.prepare(
+    `DELETE FROM sites WHERE deleted_at IS NOT NULL AND deleted_at < ?`,
+  );
   const stats = db.prepare(
     `SELECT category, status, COUNT(*) AS count FROM sites WHERE deleted_at IS NULL
      GROUP BY category, status ORDER BY category, status`,
@@ -146,6 +150,10 @@ export function createSiteRepository(db) {
     },
     softDelete: (id, userId) => softDelete.run(userId, id).changes > 0,
     restore: (id, userId) => restore.run(userId, id).changes > 0,
+    /** Hard delete a soft-deleted site; work orders and comments cascade via FK. */
+    purge: (id) => purge.run(id).changes > 0,
+    /** Sweep: hard-delete every site soft-deleted before the ISO cutoff. Returns count. */
+    purgeOlderThan: (cutoffIso) => purgeExpired.run(cutoffIso).changes,
     stats: () => stats.all(),
   };
 }

@@ -103,5 +103,5 @@ export function createApp(config) {
   app.use(express.static(PUBLIC_DIR, { extensions: ['html'], maxAge: 0, etag: true }));
   app.use(errorHandler);
 
-  return { app, db, sessions };
+  return { app, db, sessions, sites };
 }

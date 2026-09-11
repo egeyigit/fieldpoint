@@ -14,6 +14,12 @@ function parseIntOr(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+/** Retention days for the recycle-bin sweeper: null (auto-purge off) unless a positive integer is set. */
+function parsePurgeDays(value) {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 const DEV_SECRET_FILE = '.session-secret';
 
 /**
@@ -79,6 +85,7 @@ export function loadConfig(env = process.env) {
     sessionSecret: resolveSessionSecret(env, dbPath),
     sessionTtlMs: parseIntOr(env.SESSION_TTL_HOURS, DEFAULT_SESSION_TTL_HOURS) * 60 * 60 * 1000,
     allowedOrigins: parseOrigins(env.ALLOWED_ORIGINS),
+    sitePurgeAfterDays: parsePurgeDays(env.SITE_PURGE_AFTER_DAYS),
     seedDemo: env.SEED_DEMO === 'true',
   });
 }
