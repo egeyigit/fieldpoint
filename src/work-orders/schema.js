@@ -1,6 +1,26 @@
 import { z } from 'zod';
 
 export const WORK_ORDER_STATUSES = ['open', 'in_progress', 'blocked', 'done', 'cancelled'];
+
+// The single source of truth for how a work order may move between statuses.
+// A status maps to the set of statuses it is allowed to become; staying put is
+// always permitted and handled by the caller.
+export const STATUS_TRANSITIONS = {
+  open: ['in_progress', 'blocked', 'done', 'cancelled'],
+  in_progress: ['open', 'blocked', 'done', 'cancelled'],
+  blocked: ['open', 'in_progress', 'done', 'cancelled'],
+  // Terminal statuses reopen only into the unfinished states.
+  done: ['open', 'in_progress', 'blocked'],
+  cancelled: ['open', 'in_progress', 'blocked'],
+};
+
+// Reopening a terminal order is a meaningful event, not a routine edit.
+export const TERMINAL_STATUSES = ['done', 'cancelled'];
+
+export function isStatusTransitionAllowed(from, to) {
+  if (from === to) return true;
+  return (STATUS_TRANSITIONS[from] ?? []).includes(to);
+}
 export const WORK_ORDER_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 export const WORK_ORDER_SORTS = ['due', 'priority', 'created', 'updated'];
 export const OPEN_STATUSES = ['open', 'in_progress', 'blocked'];

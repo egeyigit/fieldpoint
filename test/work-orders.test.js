@@ -141,6 +141,49 @@ describe('work orders', () => {
     assert.equal(response.body.summary.reduce((sum, row) => sum + row.count, 0), 2);
   });
 
+  const TRANSITION_CASES = [
+    { from: 'open', to: 'in_progress', allowed: true },
+    { from: 'open', to: 'done', allowed: true },
+    { from: 'in_progress', to: 'blocked', allowed: true },
+    { from: 'blocked', to: 'done', allowed: true },
+    { from: 'done', to: 'open', allowed: true },
+    { from: 'cancelled', to: 'in_progress', allowed: true },
+    { from: 'cancelled', to: 'in_progress', allowed: true, label: 'reopen cancelled' },
+    { from: 'done', to: 'blocked', allowed: false },
+    { from: 'cancelled', to: 'done', allowed: false },
+    { from: 'done', to: 'cancelled', allowed: false },
+  ];
+
+  for (const { from, to, allowed, label } of TRANSITION_CASES) {
+    it(`${allowed ? 'allows' : 'rejects'} ${label ?? `${from} \u2192 ${to}`}`, async () => {
+      const { body } = await ctx.agent.post('/api/work-orders').send(newOrder());
+      const id = body.workOrder.id;
+      if (from !== 'open') {
+        await ctx.agent.patch(`/api/work-orders/${id}`).send({ status: from });
+      }
+      const response = await ctx.agent.patch(`/api/work-orders/${id}`).send({ status: to });
+      if (allowed) {
+        assert.equal(response.status, 200);
+        assert.equal(response.body.workOrder.status, to);
+      } else {
+        assert.equal(response.status, 409);
+        assert.deepEqual(response.body.details, [{ path: 'status', from, to }]);
+        // A rejected transition changes nothing.
+        const current = await ctx.agent.get(`/api/work-orders/${id}`);
+        assert.equal(current.body.workOrder.status, from);
+      }
+    });
+  }
+
+  it('audits reopening a terminal order as work_order.reopen', async () => {
+    const { body } = await ctx.agent.post('/api/work-orders').send(newOrder());
+    const id = body.workOrder.id;
+    await ctx.agent.patch(`/api/work-orders/${id}`).send({ status: 'done' });
+    await ctx.agent.patch(`/api/work-orders/${id}`).send({ status: 'in_progress' });
+    const actions = (await ctx.agent.get('/api/users/audit')).body.entries.map((entry) => entry.action);
+    assert.ok(actions.includes('work_order.reopen'), 'expected work_order.reopen');
+  });
+
   it('audits create, update, delete and comment', async () => {
     const { body } = await ctx.agent.post('/api/work-orders').send(newOrder());
     await ctx.agent.patch(`/api/work-orders/${body.workOrder.id}`).send({ status: 'in_progress' });

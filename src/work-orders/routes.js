@@ -6,7 +6,9 @@ import { recordAudit } from '../audit/log.js';
 import {
   createCommentSchema,
   createWorkOrderSchema,
+  isStatusTransitionAllowed,
   listWorkOrdersSchema,
+  TERMINAL_STATUSES,
   updateWorkOrderSchema,
   workOrderIdSchema,
 } from './schema.js';
@@ -71,10 +73,20 @@ export function createWorkOrderRouter({ db, workOrders, sites, users }) {
     try {
       const existing = loadOrder(req.validated.params.id);
       assertAssignable(req.validated.body.assignedTo);
+      const nextStatus = req.validated.body.status;
+      const statusChanged = nextStatus !== undefined && nextStatus !== existing.status;
+      if (statusChanged && !isStatusTransitionAllowed(existing.status, nextStatus)) {
+        throw new HttpError(409, `Cannot change status from ${existing.status} to ${nextStatus}`, [
+          { path: 'status', from: existing.status, to: nextStatus },
+        ]);
+      }
+      const reopened = statusChanged && TERMINAL_STATUSES.includes(existing.status);
       const order = workOrders.update(existing.id, req.validated.body, req.user.id);
       recordAudit(db, {
-        userId: req.user.id, action: 'work_order.update', entityType: 'work_order', entityId: order.id,
-        details: req.validated.body,
+        userId: req.user.id,
+        action: reopened ? 'work_order.reopen' : 'work_order.update',
+        entityType: 'work_order', entityId: order.id,
+        details: reopened ? { ...req.validated.body, from: existing.status, to: nextStatus } : req.validated.body,
       });
       return res.json({ ok: true, workOrder: order });
     } catch (error) {
