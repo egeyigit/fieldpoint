@@ -34,6 +34,19 @@ Created automatically on first boot (`SEED_DEMO=true`, idempotent):
 
 `npm run seed` prints the same table. Extra admins: `FIELDPOINT_USER_EMAIL=… FIELDPOINT_USER_PASSWORD=… node scripts/create-user.js`.
 
+## Load data
+
+To reproduce and benchmark scale-dependent behaviour (pagination, search latency, radius queries, map-marker density, N+1 joins) the demo seed is far too small. `scripts/generate-load.js` produces geographically clustered sites and work orders at volume:
+
+bash
+node scripts/generate-load.js --db=./data/load.db          # ~50k sites, ~200k work orders
+node scripts/generate-load.js --db=./data/load.db --sites=10000 --work-orders=40000
+
+
+Coordinates are drawn around real metro centres (dense core, sparse edges) so pins land on plausible landmasses. Inserts are batched inside transactions and rows-per-second throughput is printed as it runs. `--seed=N` makes a run reproducible.
+
+To protect real data the script refuses to write the configured `DB_PATH` unless you pass `--force`; point `--db` at a throwaway file instead.
+
 ## Quick start
 
 Requires Node.js 22.13+ (uses `node:sqlite`).
