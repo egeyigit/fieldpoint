@@ -53,6 +53,7 @@ export const listSitesSchema = z
     nearLat: z.coerce.number().min(-90).max(90).optional(),
     nearLng: z.coerce.number().min(-180).max(180).optional(),
     radiusKm: z.coerce.number().positive().max(MAX_RADIUS_KM).optional(),
+    cursor: z.string().max(500).optional(),
     sort: z.enum(SITE_SORTS).default('name'),
     includeDeleted: z
       .union([z.boolean(), z.enum(['true', 'false'])])

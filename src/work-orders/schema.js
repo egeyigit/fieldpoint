@@ -59,6 +59,7 @@ export const listWorkOrdersSchema = z.object({
     .transform((value) => value === true || value === 'true')
     .default(false),
   q: z.string().trim().max(100).optional(),
+  cursor: z.string().max(500).optional(),
   sort: z.enum(WORK_ORDER_SORTS).default('due'),
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(200),
   offset: z.coerce.number().int().min(0).default(0),

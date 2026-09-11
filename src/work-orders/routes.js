@@ -32,8 +32,10 @@ export function createWorkOrderRouter({ db, workOrders, sites, users }) {
 
   router.get('/', validate(listWorkOrdersSchema, 'query'), (req, res) => {
     const query = req.validated.query;
-    const { rows, total } = workOrders.list(query);
-    res.json({ ok: true, workOrders: rows, total, limit: query.limit, offset: query.offset });
+    const { rows, total, nextCursor } = workOrders.list(query);
+    const response = { ok: true, workOrders: rows, total, limit: query.limit, offset: query.offset };
+    if (nextCursor) response.nextCursor = nextCursor;
+    res.json(response);
   });
 
   router.get('/summary', (_req, res) => {

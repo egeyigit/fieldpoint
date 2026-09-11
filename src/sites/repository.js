@@ -1,4 +1,5 @@
 import { boundingBox, haversineKm } from './geo.js';
+import { encodeCursor, decodeCursor, keysetWhereClause } from '../cursor.js';
 
 const COLUMNS = `s.id, s.name, s.address, s.lat, s.lng, s.category, s.status, s.notes,
   s.assigned_to AS assignedTo, s.created_by AS createdBy, s.updated_by AS updatedBy,
@@ -18,6 +19,29 @@ const ORDER_BY_SORT = {
   created: 's.created_at DESC, s.id DESC',
   updated: 's.updated_at DESC, s.id DESC',
 };
+
+// Keyset metadata per sort: columns and directions that match ORDER_BY_SORT.
+const KEYSET_META = {
+  name: { columns: ['s.name', 's.id'], directions: ['ASC', 'ASC'] },
+  created: { columns: ['s.created_at', 's.id'], directions: ['DESC', 'DESC'] },
+  updated: { columns: ['s.updated_at', 's.id'], directions: ['DESC', 'DESC'] },
+};
+
+/** Extract cursor values from a row for the given sort. */
+function siteCursorValues(row, sort) {
+  switch (sort) {
+    case 'created': return [row.createdAt, row.id];
+    case 'updated': return [row.updatedAt, row.id];
+    case 'name':
+    default:
+      return [row.name, row.id];
+  }
+}
+
+/** For distance sort the cursor encodes [distanceKm, id]. */
+function siteDistanceCursorValues(row) {
+  return [row.distanceKm, row.id];
+}
 
 export function createSiteRepository(db) {
   const byId = db.prepare(`SELECT ${COLUMNS} ${FROM} WHERE s.id = ?`);
@@ -107,19 +131,77 @@ export function createSiteRepository(db) {
     list(filters) {
       const { where, params } = buildFilter(filters);
       const order = ORDER_BY_SORT[filters.sort] ?? ORDER_BY_SORT.name;
+      const sortKey = filters.sort && ORDER_BY_SORT[filters.sort] ? filters.sort : 'name';
+
       // A radius query filters exact distances in JS, so paginate after that.
       if (filters.radiusKm !== undefined) {
         const all = sortRows(
           applyRadius(db.prepare(`SELECT ${COLUMNS} ${FROM} ${where} ORDER BY ${order}`).all(...params), filters),
           filters.sort,
         );
-        return { rows: all.slice(filters.offset, filters.offset + filters.limit), total: all.length };
+
+        // Cursor-based pagination over the in-memory distance-sorted array.
+        let startIndex = 0;
+        if (filters.cursor) {
+          const cursorVals = decodeCursor(filters.cursor);
+          if (cursorVals.length !== 2) throw Object.assign(new Error('Invalid cursor'), { status: 400 });
+          const [cursorDist, cursorId] = cursorVals;
+          startIndex = all.findIndex(
+            (row, idx) =>
+              idx > 0 &&
+              (row.distanceKm > cursorDist ||
+                (row.distanceKm === cursorDist && row.id > cursorId)),
+          );
+          // If cursor pointed past the end, no results.
+          if (startIndex === -1) {
+            const lastRow = all.length > 0 ? all[all.length - 1] : null;
+            if (lastRow && (lastRow.distanceKm < cursorDist || (lastRow.distanceKm === cursorDist && lastRow.id <= cursorId))) {
+              startIndex = all.length;
+            } else {
+              startIndex = 0;
+            }
+          }
+        } else if (filters.offset > 0) {
+          startIndex = filters.offset;
+        }
+
+        const page = all.slice(startIndex, startIndex + filters.limit);
+        const nextCursor = startIndex + filters.limit < all.length && page.length > 0
+          ? encodeCursor(siteDistanceCursorValues(page[page.length - 1]))
+          : null;
+        return { rows: page, total: all.length, nextCursor };
       }
+
+      // Keyset cursor pagination for non-distance sorts.
+      if (filters.cursor) {
+        const meta = KEYSET_META[sortKey];
+        const cursorVals = decodeCursor(filters.cursor);
+        if (cursorVals.length !== meta.columns.length) {
+          const { HttpError } = await import('./middleware/errors.js').catch(() => ({}));
+          throw Object.assign(new Error('Invalid cursor'), { status: 400 });
+        }
+        const ks = keysetWhereClause({ columns: meta.columns, directions: meta.directions, values: cursorVals });
+        const combinedWhere = where ? `${where} AND (${ks.sql})` : `WHERE (${ks.sql})`;
+        const combinedParams = [...params, ...ks.params];
+        const rows = db
+          .prepare(`SELECT ${COLUMNS} ${FROM} ${combinedWhere} ORDER BY ${order} LIMIT ?`)
+          .all(...combinedParams, filters.limit);
+        const { total } = db.prepare(`SELECT COUNT(*) AS total FROM sites s ${where}`).get(...params);
+        const nextCursor = rows.length === filters.limit
+          ? encodeCursor(siteCursorValues(rows[rows.length - 1], sortKey))
+          : null;
+        return { rows, total, nextCursor };
+      }
+
+      // Legacy offset pagination.
       const rows = db
         .prepare(`SELECT ${COLUMNS} ${FROM} ${where} ORDER BY ${order} LIMIT ? OFFSET ?`)
         .all(...params, filters.limit, filters.offset);
       const { total } = db.prepare(`SELECT COUNT(*) AS total FROM sites s ${where}`).get(...params);
-      return { rows, total };
+      const nextCursor = rows.length === filters.limit
+        ? encodeCursor(siteCursorValues(rows[rows.length - 1], sortKey))
+        : null;
+      return { rows, total, nextCursor };
     },
     /** Every matching row, no pagination — for exports. */
     listAll(filters) {

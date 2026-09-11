@@ -1,3 +1,5 @@
+import { encodeCursor, decodeCursor, keysetWhereClause } from '../cursor.js';
+
 const COLUMNS = `w.id, w.site_id AS siteId, w.title, w.description, w.status, w.priority,
   w.assigned_to AS assignedTo, w.due_date AS dueDate, w.completed_at AS completedAt,
   w.created_by AS createdBy, w.updated_by AS updatedBy, w.created_at AS createdAt, w.updated_at AS updatedAt,
@@ -23,6 +25,38 @@ const ORDER_BY_SORT = {
   created: 'w.created_at DESC, w.id DESC',
   updated: 'w.updated_at DESC, w.id DESC',
 };
+
+const DUE_NULL_RANK = `CASE WHEN w.due_date IS NULL THEN 1 ELSE 0 END`;
+
+const KEYSET_META = {
+  due: {
+    columns: [DUE_NULL_RANK, 'w.due_date', PRIORITY_RANK, 'w.id'],
+    directions: ['ASC', 'ASC', 'ASC', 'ASC'],
+  },
+  priority: {
+    columns: [PRIORITY_RANK, 'w.due_date', 'w.id'],
+    directions: ['ASC', 'ASC', 'ASC'],
+  },
+  created: { columns: ['w.created_at', 'w.id'], directions: ['DESC', 'DESC'] },
+  updated: { columns: ['w.updated_at', 'w.id'], directions: ['DESC', 'DESC'] },
+};
+
+const PRIORITY_VALUE = { urgent: 0, high: 1, normal: 2, low: 3 };
+
+function woCursorValues(row, sort) {
+  switch (sort) {
+    case 'due':
+      return [row.dueDate === null ? 1 : 0, row.dueDate, PRIORITY_VALUE[row.priority] ?? 3, row.id];
+    case 'priority':
+      return [PRIORITY_VALUE[row.priority] ?? 3, row.dueDate, row.id];
+    case 'created':
+      return [row.createdAt, row.id];
+    case 'updated':
+      return [row.updatedAt, row.id];
+    default:
+      return [row.dueDate === null ? 1 : 0, row.dueDate, PRIORITY_VALUE[row.priority] ?? 3, row.id];
+  }
+}
 
 export function createWorkOrderRepository(db) {
   const byId = db.prepare(`SELECT ${COLUMNS} ${FROM} WHERE w.id = ?`);
@@ -88,13 +122,40 @@ export function createWorkOrderRepository(db) {
     list(filters) {
       const { where, params } = buildFilter(filters);
       const order = ORDER_BY_SORT[filters.sort] ?? ORDER_BY_SORT.due;
+      const sortKey = filters.sort && ORDER_BY_SORT[filters.sort] ? filters.sort : 'due';
+
+      if (filters.cursor) {
+        const meta = KEYSET_META[sortKey];
+        const cursorVals = decodeCursor(filters.cursor);
+        if (cursorVals.length !== meta.columns.length) {
+          throw Object.assign(new Error('Invalid cursor'), { status: 400 });
+        }
+        const ks = keysetWhereClause({ columns: meta.columns, directions: meta.directions, values: cursorVals });
+        const combinedWhere = `${where} AND (${ks.sql})`;
+        const combinedParams = [...params, ...ks.params];
+        const rows = db
+          .prepare(`SELECT ${COLUMNS} ${FROM} ${combinedWhere} ORDER BY ${order} LIMIT ?`)
+          .all(...combinedParams, filters.limit);
+        const { total } = db
+          .prepare(`SELECT COUNT(*) AS total FROM work_orders w JOIN sites s ON s.id = w.site_id ${where}`)
+          .get(...params);
+        const nextCursor = rows.length === filters.limit
+          ? encodeCursor(woCursorValues(rows[rows.length - 1], sortKey))
+          : null;
+        return { rows, total, nextCursor };
+      }
+
+      // Legacy offset pagination.
       const rows = db
         .prepare(`SELECT ${COLUMNS} ${FROM} ${where} ORDER BY ${order} LIMIT ? OFFSET ?`)
         .all(...params, filters.limit, filters.offset);
       const { total } = db
         .prepare(`SELECT COUNT(*) AS total FROM work_orders w JOIN sites s ON s.id = w.site_id ${where}`)
         .get(...params);
-      return { rows, total };
+      const nextCursor = rows.length === filters.limit
+        ? encodeCursor(woCursorValues(rows[rows.length - 1], sortKey))
+        : null;
+      return { rows, total, nextCursor };
     },
     create(data, userId) {
       const completedAt = TERMINAL_STATUSES.has(data.status) ? nowIso() : null;

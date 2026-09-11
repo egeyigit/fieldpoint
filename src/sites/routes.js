@@ -39,8 +39,10 @@ export function createSiteRouter({ db, sites, users }) {
     try {
       assertMayIncludeDeleted(req);
       const query = req.validated.query;
-      const { rows, total } = sites.list(query);
-      return res.json({ ok: true, sites: rows, total, limit: query.limit, offset: query.offset });
+      const { rows, total, nextCursor } = sites.list(query);
+      const response = { ok: true, sites: rows, total, limit: query.limit, offset: query.offset };
+      if (nextCursor) response.nextCursor = nextCursor;
+      return res.json(response);
     } catch (error) {
       return next(error);
     }
