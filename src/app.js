@@ -14,6 +14,8 @@ import { createSiteRepository } from './sites/repository.js';
 import { createSiteRouter } from './sites/routes.js';
 import { createWorkOrderRepository } from './work-orders/repository.js';
 import { createWorkOrderRouter } from './work-orders/routes.js';
+import { createNotificationRepository } from './notifications/repository.js';
+import { createNotificationRouter } from './notifications/routes.js';
 import { requestLogger } from './middleware/logging.js';
 import { originCheck } from './middleware/security.js';
 import { errorHandler, notFoundHandler } from './middleware/errors.js';
@@ -36,7 +38,8 @@ export function createApp(config) {
   const users = createUserRepository(db);
   const sites = createSiteRepository(db);
   const workOrders = createWorkOrderRepository(db);
-  const deps = { db, sessions, users, sites, workOrders, config };
+  const notifications = createNotificationRepository(db);
+  const deps = { db, sessions, users, sites, workOrders, notifications, config };
 
   const app = express();
   app.disable('x-powered-by');
@@ -96,6 +99,7 @@ export function createApp(config) {
   app.use('/api/users', createUserRouter(deps));
   app.use('/api/sites', createSiteRouter(deps));
   app.use('/api/work-orders', createWorkOrderRouter(deps));
+  app.use('/api/notifications', createNotificationRouter(deps));
   app.use('/api', notFoundHandler);
 
   app.use('/vendor/leaflet', express.static(join(LEAFLET_DIR, 'dist'), { immutable: true, maxAge: '7d' }));
@@ -103,5 +107,5 @@ export function createApp(config) {
   app.use(express.static(PUBLIC_DIR, { extensions: ['html'], maxAge: 0, etag: true }));
   app.use(errorHandler);
 
-  return { app, db, sessions };
+  return { app, db, sessions, notifications };
 }

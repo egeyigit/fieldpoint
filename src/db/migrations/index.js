@@ -14,3 +14,4 @@ export const MIGRATIONS = Object.freeze([
 ]);
 
 export const LATEST_VERSION = MIGRATIONS.at(-1).version;
+

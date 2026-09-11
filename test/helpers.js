@@ -9,8 +9,8 @@ export const SITE = { name: 'HQ', address: '1 Main St', lat: 40.7128, lng: -74.0
 /** Fresh in-memory app per test. Returns an agent that keeps cookies. */
 export function bootApp() {
   const config = loadConfig({ NODE_ENV: 'test', DB_PATH: ':memory:', SESSION_SECRET: 'x'.repeat(40) });
-  const { app, db } = createApp(config);
-  return { app, db, agent: request.agent(app), close: () => db.close() };
+  const { app, db, notifications } = createApp(config);
+  return { app, db, notifications, agent: request.agent(app), close: () => db.close() };
 }
 
 export async function registerAdmin(agent) {

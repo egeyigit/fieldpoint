@@ -11,9 +11,22 @@ import {
   workOrderIdSchema,
 } from './schema.js';
 
-export function createWorkOrderRouter({ db, workOrders, sites, users }) {
+export function createWorkOrderRouter({ db, workOrders, sites, users, notifications }) {
   const router = Router();
   router.use(requireAuth);
+
+  // A notification always goes to the recipient, never to the actor who caused it.
+  function notifyAssignment(order, actorId) {
+    if (!order.assignedTo || order.assignedTo === actorId) return;
+    notifications.create({
+      userId: order.assignedTo,
+      type: 'assignment',
+      workOrderId: order.id,
+      title: `Assigned: ${order.title}`,
+      body: 'A work order has been assigned to you.',
+      sourceKey: `assignment:${order.id}:${order.assignedTo}`,
+    });
+  }
 
   function assertAssignable(assignedTo) {
     if (assignedTo === undefined || assignedTo === null) return;
@@ -57,6 +70,7 @@ export function createWorkOrderRouter({ db, workOrders, sites, users }) {
       }
       assertAssignable(body.assignedTo);
       const order = workOrders.create(body, req.user.id);
+      notifyAssignment(order, req.user.id);
       recordAudit(db, {
         userId: req.user.id, action: 'work_order.create', entityType: 'work_order', entityId: order.id,
         details: { title: order.title, siteId: order.siteId },
@@ -72,6 +86,10 @@ export function createWorkOrderRouter({ db, workOrders, sites, users }) {
       const existing = loadOrder(req.validated.params.id);
       assertAssignable(req.validated.body.assignedTo);
       const order = workOrders.update(existing.id, req.validated.body, req.user.id);
+      // Only a change of assignee should notify; the source_key keeps it to one per assignee.
+      if (req.validated.body.assignedTo !== undefined && order.assignedTo !== existing.assignedTo) {
+        notifyAssignment(order, req.user.id);
+      }
       recordAudit(db, {
         userId: req.user.id, action: 'work_order.update', entityType: 'work_order', entityId: order.id,
         details: req.validated.body,
@@ -109,6 +127,16 @@ export function createWorkOrderRouter({ db, workOrders, sites, users }) {
     try {
       const order = loadOrder(req.validated.params.id);
       const comment = workOrders.addComment(order.id, req.user.id, req.validated.body.body);
+      if (order.assignedTo && order.assignedTo !== req.user.id) {
+        notifications.create({
+          userId: order.assignedTo,
+          type: 'comment',
+          workOrderId: order.id,
+          title: `New comment: ${order.title}`,
+          body: comment.body,
+          sourceKey: `comment:${comment.id}`,
+        });
+      }
       recordAudit(db, {
         userId: req.user.id, action: 'work_order.comment', entityType: 'work_order', entityId: order.id,
         details: { commentId: comment.id },

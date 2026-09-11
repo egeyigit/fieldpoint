@@ -17,7 +17,7 @@ describe('migrations', () => {
   it('build every table on a fresh database', () => {
     const db = openDatabase(':memory:');
     try {
-      for (const table of ['users', 'sessions', 'sites', 'audit_log', 'work_orders', 'work_order_comments']) {
+      for (const table of ['users', 'sessions', 'sites', 'audit_log', 'work_orders', 'work_order_comments', 'notifications']) {
         assert.ok(tableNames(db).includes(table), `missing ${table}`);
       }
       const version = db.prepare(`SELECT value FROM schema_meta WHERE key = 'version'`).get().value;
