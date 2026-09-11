@@ -125,12 +125,37 @@ describe('work orders', () => {
     assert.equal((await ctx.agent.get(`/api/work-orders/${body.workOrder.id}`)).status, 404);
   });
 
-  it('cascades deletion of comments when the order goes', async () => {
+  it('soft-deletes the order and keeps its comment thread for restore', async () => {
     const { body } = await ctx.agent.post('/api/work-orders').send(newOrder());
-    await ctx.agent.post(`/api/work-orders/${body.workOrder.id}/comments`).send({ body: 'note' });
-    await ctx.agent.delete(`/api/work-orders/${body.workOrder.id}`);
-    const remaining = ctx.db.prepare('SELECT COUNT(*) AS count FROM work_order_comments').get();
-    assert.equal(remaining.count, 0);
+    const id = body.workOrder.id;
+    await ctx.agent.post(`/api/work-orders/${id}/comments`).send({ body: 'note' });
+    assert.equal((await ctx.agent.delete(`/api/work-orders/${id}`)).status, 204);
+
+    // Hidden from every read path, but the row and its comments survive.
+    assert.equal((await ctx.agent.get(`/api/work-orders/${id}`)).status, 404);
+    assert.equal((await ctx.agent.get('/api/work-orders')).body.total, 0);
+    const row = ctx.db.prepare('SELECT deleted_at, deleted_by FROM work_orders WHERE id = ?').get(id);
+    assert.ok(row.deleted_at, 'row should still exist with deleted_at set');
+    assert.ok(row.deleted_by);
+    assert.equal(ctx.db.prepare('SELECT COUNT(*) AS count FROM work_order_comments').get().count, 1);
+
+    // Restore brings back the order and its thread intact.
+    const restored = await ctx.agent.post(`/api/work-orders/${id}/restore`);
+    assert.equal(restored.status, 200);
+    assert.equal(restored.body.workOrder.deletedAt, null);
+    const detail = await ctx.agent.get(`/api/work-orders/${id}`);
+    assert.equal(detail.status, 200);
+    assert.deepEqual(detail.body.comments.map((comment) => comment.body), ['note']);
+  });
+
+  it('only admins may restore, and refuses a live or missing order', async () => {
+    const member = await createMember(ctx.agent, ctx.app);
+    const { body } = await ctx.agent.post('/api/work-orders').send(newOrder());
+    const id = body.workOrder.id;
+    assert.equal((await ctx.agent.post(`/api/work-orders/${id}/restore`)).status, 409);
+    assert.equal((await ctx.agent.post('/api/work-orders/9999/restore')).status, 404);
+    await ctx.agent.delete(`/api/work-orders/${id}`);
+    assert.equal((await member.post(`/api/work-orders/${id}/restore`)).status, 403);
   });
 
   it('summarises by status and priority', async () => {
@@ -146,8 +171,9 @@ describe('work orders', () => {
     await ctx.agent.patch(`/api/work-orders/${body.workOrder.id}`).send({ status: 'in_progress' });
     await ctx.agent.post(`/api/work-orders/${body.workOrder.id}/comments`).send({ body: 'on site' });
     await ctx.agent.delete(`/api/work-orders/${body.workOrder.id}`);
+    await ctx.agent.post(`/api/work-orders/${body.workOrder.id}/restore`);
     const actions = (await ctx.agent.get('/api/users/audit')).body.entries.map((entry) => entry.action);
-    for (const action of ['work_order.create', 'work_order.update', 'work_order.comment', 'work_order.delete']) {
+    for (const action of ['work_order.create', 'work_order.update', 'work_order.comment', 'work_order.delete', 'work_order.restore']) {
       assert.ok(actions.includes(action), `expected ${action}`);
     }
   });

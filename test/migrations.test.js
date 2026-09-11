@@ -20,6 +20,8 @@ describe('migrations', () => {
       for (const table of ['users', 'sessions', 'sites', 'audit_log', 'work_orders', 'work_order_comments']) {
         assert.ok(tableNames(db).includes(table), `missing ${table}`);
       }
+      const workOrder = db.prepare(`SELECT name FROM pragma_table_info('work_orders') WHERE name IN ('deleted_at', 'deleted_by')`).all();
+      assert.equal(workOrder.length, 2, 'work_orders should have deleted_at and deleted_by');
       const version = db.prepare(`SELECT value FROM schema_meta WHERE key = 'version'`).get().value;
       assert.equal(Number(version), LATEST_VERSION);
     } finally {

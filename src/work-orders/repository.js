@@ -1,6 +1,7 @@
 const COLUMNS = `w.id, w.site_id AS siteId, w.title, w.description, w.status, w.priority,
   w.assigned_to AS assignedTo, w.due_date AS dueDate, w.completed_at AS completedAt,
   w.created_by AS createdBy, w.updated_by AS updatedBy, w.created_at AS createdAt, w.updated_at AS updatedAt,
+  w.deleted_at AS deletedAt, w.deleted_by AS deletedBy,
   s.name AS siteName, s.lat AS siteLat, s.lng AS siteLng,
   au.name AS assignedToName, cu.name AS createdByName`;
 const FROM = `FROM work_orders w
@@ -30,7 +31,15 @@ export function createWorkOrderRepository(db) {
     `INSERT INTO work_orders (site_id, title, description, status, priority, assigned_to, due_date, completed_at, created_by, updated_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
-  const remove = db.prepare(`DELETE FROM work_orders WHERE id = ?`);
+  const softDelete = db.prepare(
+    `UPDATE work_orders SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), deleted_by = ?
+     WHERE id = ? AND deleted_at IS NULL`,
+  );
+  const restore = db.prepare(
+    `UPDATE work_orders SET deleted_at = NULL, deleted_by = NULL,
+     updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by = ?
+     WHERE id = ? AND deleted_at IS NOT NULL`,
+  );
   const insertComment = db.prepare(
     `INSERT INTO work_order_comments (work_order_id, author_id, body) VALUES (?, ?, ?)`,
   );
@@ -43,12 +52,13 @@ export function createWorkOrderRepository(db) {
   const summary = db.prepare(
     `SELECT w.status, w.priority, COUNT(*) AS count FROM work_orders w
      JOIN sites s ON s.id = w.site_id AND s.deleted_at IS NULL
+     WHERE w.deleted_at IS NULL
      GROUP BY w.status, w.priority`,
   );
 
   function buildFilter(filters) {
-    // Work orders on a soft-deleted site stay out of every listing.
-    const clauses = ['s.deleted_at IS NULL'];
+    // A soft-deleted order, or one on a soft-deleted site, stays out of every listing.
+    const clauses = ['w.deleted_at IS NULL', 's.deleted_at IS NULL'];
     const params = [];
     if (filters.siteId !== undefined) {
       clauses.push('w.site_id = ?');
@@ -85,6 +95,11 @@ export function createWorkOrderRepository(db) {
 
   return {
     findById: (id) => byId.get(id) ?? null,
+    /** Visible (not soft-deleted) order, or null. */
+    findVisibleById(id) {
+      const order = byId.get(id);
+      return order && order.deletedAt === null ? order : null;
+    },
     list(filters) {
       const { where, params } = buildFilter(filters);
       const order = ORDER_BY_SORT[filters.sort] ?? ORDER_BY_SORT.due;
@@ -122,7 +137,8 @@ export function createWorkOrderRepository(db) {
       ).run(...values, userId, id);
       return byId.get(id);
     },
-    remove: (id) => remove.run(id).changes > 0,
+    softDelete: (id, userId) => softDelete.run(userId, id).changes > 0,
+    restore: (id, userId) => restore.run(userId, id).changes > 0,
     addComment: (workOrderId, authorId, body) => {
       const result = insertComment.run(workOrderId, authorId, body);
       return listComments.all(workOrderId).find((comment) => comment.id === Number(result.lastInsertRowid));

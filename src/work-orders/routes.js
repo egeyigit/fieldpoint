@@ -25,7 +25,7 @@ export function createWorkOrderRouter({ db, workOrders, sites, users }) {
   }
 
   function loadOrder(id) {
-    const order = workOrders.findById(id);
+    const order = workOrders.findVisibleById(id);
     if (!order) throw new HttpError(404, 'Work order not found');
     return order;
   }
@@ -85,12 +85,29 @@ export function createWorkOrderRouter({ db, workOrders, sites, users }) {
   router.delete('/:id', requireRole('admin'), validate(workOrderIdSchema, 'params'), (req, res, next) => {
     try {
       const existing = loadOrder(req.validated.params.id);
-      workOrders.remove(existing.id);
+      workOrders.softDelete(existing.id, req.user.id);
       recordAudit(db, {
         userId: req.user.id, action: 'work_order.delete', entityType: 'work_order', entityId: existing.id,
         details: { title: existing.title },
       });
       return res.status(204).end();
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/:id/restore', requireRole('admin'), validate(workOrderIdSchema, 'params'), (req, res, next) => {
+    try {
+      const { id } = req.validated.params;
+      const existing = workOrders.findById(id);
+      if (!existing) throw new HttpError(404, 'Work order not found');
+      if (existing.deletedAt === null) throw new HttpError(409, 'Work order is not deleted');
+      workOrders.restore(id, req.user.id);
+      recordAudit(db, {
+        userId: req.user.id, action: 'work_order.restore', entityType: 'work_order', entityId: id,
+        details: { title: existing.title },
+      });
+      return res.json({ ok: true, workOrder: workOrders.findById(id) });
     } catch (error) {
       return next(error);
     }
