@@ -66,6 +66,8 @@ Copy `.env.example` to `.env` (or export variables). All optional in development
 
 All routes return `{ ok: boolean, ... }`. Errors: `{ ok: false, error, details? }`.
 
+The machine-readable contract is served at `GET /api/openapi.json` (OpenAPI 3.1, no auth) and rendered at [`/docs`](http://localhost:4100/docs). A test fails if a mounted `/api` route has no spec entry, so the table below and the spec stay in step with the handlers.
+
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
 | GET | `/api/health` | – | Liveness |

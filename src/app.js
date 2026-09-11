@@ -14,6 +14,7 @@ import { createSiteRepository } from './sites/repository.js';
 import { createSiteRouter } from './sites/routes.js';
 import { createWorkOrderRepository } from './work-orders/repository.js';
 import { createWorkOrderRouter } from './work-orders/routes.js';
+import { openapiDocument } from './openapi.js';
 import { requestLogger } from './middleware/logging.js';
 import { originCheck } from './middleware/security.js';
 import { errorHandler, notFoundHandler } from './middleware/errors.js';
@@ -25,6 +26,22 @@ const LEAFLET_DIR = dirname(require.resolve('leaflet/package.json'));
 const BODY_LIMIT = '64kb';
 const API_WINDOW_MS = 60 * 1000;
 const API_MAX_REQUESTS = 600;
+
+// A tiny self-hosted viewer: inline JSON fetch + hand-rolled rendering keep it
+// within the app's CSP (scriptSrc/styleSrc 'self' only, no CDN, no eval).
+const DOCS_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FieldPoint API docs</title>
+  <link rel="stylesheet" href="/docs.css" />
+</head>
+<body>
+  <main id="docs"><p>Loading the API contract…</p></main>
+  <script type="module" src="/docs.js"></script>
+</body>
+</html>`;
 
 /**
  * Builds the Express app. Returns { app, db, sessions } so tests can drive the
@@ -79,6 +96,11 @@ export function createApp(config) {
       time: new Date().toISOString(),
     });
   });
+
+  // The machine-readable contract and its viewer are public: a client generator
+  // must reach the spec without a session, and /docs only renders that spec.
+  app.get('/api/openapi.json', (_req, res) => res.json(openapiDocument));
+  app.get('/docs', (_req, res) => res.type('html').send(DOCS_HTML));
 
   app.use(attachUser(sessions));
 
