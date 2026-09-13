@@ -191,8 +191,8 @@ export function createSitesPanel({ mapView, currentUser }) {
     }
   }
 
-  function openEditor(site = null, preset = {}) {
-    opener = document.activeElement;
+  function openEditor(site = null, preset = {}, openedBy = null) {
+    opener = openedBy ?? document.activeElement;
     form.reset();
     errorBox.textContent = '';
     $('#site-dialog-title').textContent = site ? 'Edit site' : 'New site';

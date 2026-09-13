@@ -30,11 +30,12 @@ export function createMapView(element, { onSelect, onAddAt }) {
 
   // The container must be focusable so a dialog opened from the map can return
   // focus here on close; the native <dialog> focus-return does not cover this
-  // path because the opener is a map event, not a focused control.
+  // path because the opener is a map event, not a focused control. Passing the
+  // element on lets the dialog restore focus here after it closes.
   if (element.tabIndex < 0) element.tabIndex = -1;
   map.on('contextmenu', (event) => {
     element.focus();
-    onAddAt(event.latlng.lat, event.latlng.lng);
+    onAddAt(event.latlng.lat, event.latlng.lng, element);
   });
 
   // Leaflet only tracks window resizes. The container is laid out by CSS grid and
