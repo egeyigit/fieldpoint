@@ -144,6 +144,18 @@ export function createSiteRepository(db) {
       ).run(...fields.map((key) => data[key]), userId, id);
       return byId.get(id) ?? null;
     },
+    /** Visible sites whose name, address or notes match the term. */
+    search(term) {
+      const pattern = `%${escapeLike(term)}%`;
+      return db
+        .prepare(
+          `SELECT ${COLUMNS} ${FROM}
+           WHERE s.deleted_at IS NULL
+             AND (s.name LIKE ? ESCAPE '\\' OR s.address LIKE ? ESCAPE '\\' OR s.notes LIKE ? ESCAPE '\\')
+           ORDER BY s.name COLLATE NOCASE, s.id ASC`,
+        )
+        .all(pattern, pattern, pattern);
+    },
     softDelete: (id, userId) => softDelete.run(userId, id).changes > 0,
     restore: (id, userId) => restore.run(userId, id).changes > 0,
     stats: () => stats.all(),

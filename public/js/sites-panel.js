@@ -6,8 +6,9 @@ const PAGE_SIZE = 1000;
 const MAX_SITES = 10000;
 
 /** Sidebar list + editor dialog for sites. Map is notified through callbacks. */
-export function createSitesPanel({ mapView, currentUser }) {
+export function createSitesPanel({ mapView, currentUser, onFocusWorkOrder }) {
   const list = $('#site-list');
+  const results = $('#search-results');
   const dialog = $('#site-dialog');
   const form = $('#site-form');
   const errorBox = $('#site-error');
@@ -15,6 +16,7 @@ export function createSitesPanel({ mapView, currentUser }) {
   let directory = [];
   let selectedId = null;
   let nearMe = null;
+  let searchTimer = null;
 
   setOptions($('#filter-category'), Object.entries(CATEGORIES).map(([key, value]) => [key, value.label]), { placeholder: 'All categories' });
   setOptions($('#filter-status'), Object.entries(STATUSES), { placeholder: 'All statuses' });
@@ -25,10 +27,8 @@ export function createSitesPanel({ mapView, currentUser }) {
 
   function currentFilters() {
     const params = { sort: $('#site-sort').value };
-    const q = $('#search').value.trim();
     const category = $('#filter-category').value;
     const status = $('#filter-status').value;
-    if (q) params.q = q;
     if (category) params.category = category;
     if (status) params.status = status;
     if ($('#filter-mine').checked) params.assignedTo = currentUser.id;
@@ -285,6 +285,59 @@ export function createSitesPanel({ mapView, currentUser }) {
     }
   }
 
+  /** Renders the two labelled result groups, or clears them when the box is empty. */
+  function renderSearch({ sites: siteHits, workOrders: orderHits }) {
+    results.replaceChildren();
+    const groups = [
+      ['Sites', siteHits, (site) => { select(site.id); }, (site) => site.name],
+      ['Work orders', orderHits, (order) => onFocusWorkOrder(order), (order) => `${order.title} · ${order.siteName}`],
+    ];
+    for (const [label, hits, activate, describe] of groups) {
+      const heading = document.createElement('div');
+      heading.className = 'search-group-label';
+      heading.textContent = `${label} (${hits.length})`;
+      results.append(heading);
+      if (hits.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'search-empty';
+        empty.textContent = 'No matches';
+        results.append(empty);
+        continue;
+      }
+      for (const hit of hits) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'search-hit';
+        button.textContent = describe(hit);
+        button.addEventListener('click', () => activate(hit));
+        results.append(button);
+      }
+    }
+  }
+
+  async function runSearch() {
+    const q = $('#search').value.trim();
+    if (!q) {
+      results.hidden = true;
+      results.replaceChildren();
+      list.hidden = false;
+      return;
+    }
+    try {
+      const { sites: siteHits, workOrders: orderHits } = await api.search(q);
+      renderSearch({ sites: siteHits, workOrders: orderHits });
+      results.hidden = false;
+      list.hidden = true;
+    } catch (error) {
+      toast(error.message, true);
+    }
+  }
+
+  $('#search').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(runSearch, 200);
+  });
+
   form.addEventListener('submit', submitEditor);
   $('#cancel-btn').addEventListener('click', () => dialog.close());
   $('#delete-btn').addEventListener('click', deleteCurrent);
@@ -295,5 +348,5 @@ export function createSitesPanel({ mapView, currentUser }) {
   $('#filter-mine').addEventListener('change', () => refresh());
   $('#show-deleted').addEventListener('change', () => refresh());
 
-  return { refresh, select, openEditor, getSites: () => sites.filter((site) => !site.deletedAt) };
+  return { refresh, select, openEditor, runSearch, getSites: () => sites.filter((site) => !site.deletedAt) };
 }

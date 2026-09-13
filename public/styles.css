@@ -118,6 +118,12 @@ dialog h3 { margin: 0 0 4px; }
 .check input { width: auto; }
 #near-me.active { border-color: var(--blue); color: var(--blue); }
 
+.search-results { display: grid; gap: 2px; }
+.search-group-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin: 6px 0 2px; }
+.search-empty { color: var(--muted); font-size: 12px; padding: 2px 0 4px; }
+.search-hit { width: 100%; text-align: left; border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px; background: var(--surface-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-hit:hover { border-color: var(--green); }
+
 .site-item:focus-visible, .wo-item:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
 .site-item .meta { font-size: 11px; opacity: 0.85; }
 .site-item.deleted { opacity: 0.6; border-style: dashed; }

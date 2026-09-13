@@ -14,6 +14,7 @@ import { createSiteRepository } from './sites/repository.js';
 import { createSiteRouter } from './sites/routes.js';
 import { createWorkOrderRepository } from './work-orders/repository.js';
 import { createWorkOrderRouter } from './work-orders/routes.js';
+import { createSearchRouter } from './search/routes.js';
 import { requestLogger } from './middleware/logging.js';
 import { originCheck } from './middleware/security.js';
 import { errorHandler, notFoundHandler } from './middleware/errors.js';
@@ -96,6 +97,7 @@ export function createApp(config) {
   app.use('/api/users', createUserRouter(deps));
   app.use('/api/sites', createSiteRouter(deps));
   app.use('/api/work-orders', createWorkOrderRouter(deps));
+  app.use('/api/search', createSearchRouter(deps));
   app.use('/api', notFoundHandler);
 
   app.use('/vendor/leaflet', express.static(join(LEAFLET_DIR, 'dist'), { immutable: true, maxAge: '7d' }));

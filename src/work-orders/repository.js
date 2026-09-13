@@ -122,6 +122,18 @@ export function createWorkOrderRepository(db) {
       ).run(...values, userId, id);
       return byId.get(id);
     },
+    /** Work orders on visible sites whose title or description match the term. */
+    search(term) {
+      const pattern = `%${escapeLike(term)}%`;
+      return db
+        .prepare(
+          `SELECT ${COLUMNS} ${FROM}
+           WHERE s.deleted_at IS NULL
+             AND (w.title LIKE ? ESCAPE '\\' OR w.description LIKE ? ESCAPE '\\')
+           ORDER BY w.title COLLATE NOCASE, w.id ASC`,
+        )
+        .all(pattern, pattern);
+    },
     remove: (id) => remove.run(id).changes > 0,
     addComment: (workOrderId, authorId, body) => {
       const result = insertComment.run(workOrderId, authorId, body);
