@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import { validate } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
-import { recordAudit } from '../audit/log.js';
+import { describeChanges, recordAudit } from '../audit/log.js';
 import { z } from 'zod';
 import { createSiteSchema, listSitesSchema, siteIdSchema, updateSiteSchema } from './schema.js';
 import { toCsv } from './csv.js';
@@ -93,12 +93,13 @@ export function createSiteRouter({ db, sites, users }) {
   const applyUpdate = (req, res, next) => {
     try {
       const { id } = req.validated.params;
-      if (!sites.findVisibleById(id)) throw new HttpError(404, 'Site not found');
+      const before = sites.findVisibleById(id);
+      if (!before) throw new HttpError(404, 'Site not found');
       assertAssignable(req.validated.body.assignedTo);
       const site = sites.update(id, req.validated.body, req.user.id);
       recordAudit(db, {
         userId: req.user.id, action: 'site.update', entityType: 'site', entityId: id,
-        details: req.validated.body,
+        details: { changes: describeChanges(before, req.validated.body, { redact: ['notes'] }) },
       });
       return res.json({ ok: true, site });
     } catch (error) {

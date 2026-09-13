@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireAuth, requireRole } from '../auth/middleware.js';
 import { validate } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
-import { recordAudit } from '../audit/log.js';
+import { describeChanges, recordAudit } from '../audit/log.js';
 import {
   createCommentSchema,
   createWorkOrderSchema,
@@ -74,7 +74,7 @@ export function createWorkOrderRouter({ db, workOrders, sites, users }) {
       const order = workOrders.update(existing.id, req.validated.body, req.user.id);
       recordAudit(db, {
         userId: req.user.id, action: 'work_order.update', entityType: 'work_order', entityId: order.id,
-        details: req.validated.body,
+        details: { changes: describeChanges(existing, req.validated.body, { redact: ['description'] }) },
       });
       return res.json({ ok: true, workOrder: order });
     } catch (error) {
