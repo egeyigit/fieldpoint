@@ -14,6 +14,8 @@ import { createSiteRepository } from './sites/repository.js';
 import { createSiteRouter } from './sites/routes.js';
 import { createWorkOrderRepository } from './work-orders/repository.js';
 import { createWorkOrderRouter } from './work-orders/routes.js';
+import { createGeocoder } from './geocode/service.js';
+import { createGeocodeRouter } from './geocode/routes.js';
 import { requestLogger } from './middleware/logging.js';
 import { originCheck } from './middleware/security.js';
 import { errorHandler, notFoundHandler } from './middleware/errors.js';
@@ -36,7 +38,8 @@ export function createApp(config) {
   const users = createUserRepository(db);
   const sites = createSiteRepository(db);
   const workOrders = createWorkOrderRepository(db);
-  const deps = { db, sessions, users, sites, workOrders, config };
+  const geocoder = createGeocoder({ url: config.geocoderUrl });
+  const deps = { db, sessions, users, sites, workOrders, geocoder, config };
 
   const app = express();
   app.disable('x-powered-by');
@@ -50,7 +53,7 @@ export function createApp(config) {
           scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'https://*.tile.openstreetmap.org'],
-          connectSrc: ["'self'", 'https://nominatim.openstreetmap.org'],
+          connectSrc: ["'self'"],
           objectSrc: ["'none'"],
           frameAncestors: ["'none'"],
         },
@@ -96,6 +99,7 @@ export function createApp(config) {
   app.use('/api/users', createUserRouter(deps));
   app.use('/api/sites', createSiteRouter(deps));
   app.use('/api/work-orders', createWorkOrderRouter(deps));
+  app.use('/api/geocode', createGeocodeRouter(deps));
   app.use('/api', notFoundHandler);
 
   app.use('/vendor/leaflet', express.static(join(LEAFLET_DIR, 'dist'), { immutable: true, maxAge: '7d' }));

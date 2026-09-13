@@ -84,6 +84,7 @@ export function loadConfig(env = process.env) {
     sessionSecret: resolveSessionSecret(env, dbPath),
     sessionTtlMs: parseIntOr(env.SESSION_TTL_HOURS, DEFAULT_SESSION_TTL_HOURS) * 60 * 60 * 1000,
     allowedOrigins: parseOrigins(env.ALLOWED_ORIGINS),
+    geocoderUrl: env.GEOCODER_URL?.trim() || 'https://nominatim.openstreetmap.org/search',
     seedDemo: env.SEED_DEMO === 'true',
   });
 }

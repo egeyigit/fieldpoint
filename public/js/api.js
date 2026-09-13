@@ -74,12 +74,8 @@ export function locateBrowser({ timeoutMs = 10000 } = {}) {
   });
 }
 
-/** Public geocoder (OpenStreetMap Nominatim). Rate-limited upstream: 1 req/s. */
+/** Geocode via the server proxy, which throttles, caches and identifies the app. */
 export async function geocode(query) {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!response.ok) throw new Error('Geocoding service unavailable');
-  const [hit] = await response.json();
-  if (!hit) throw new Error('Address not found');
-  return { lat: Number(hit.lat), lng: Number(hit.lon), label: hit.display_name };
+  const { result } = await request('GET', `/api/geocode?q=${encodeURIComponent(query)}`);
+  return result;
 }
