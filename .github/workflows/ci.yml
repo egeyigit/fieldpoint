@@ -25,7 +25,8 @@ jobs:
       - uses: actions/checkout@v4
       # Boot exactly the way an Atlantic Factory preview does (compose.preview.yml
       # mirrors its envelope: read-only root, cap_drop ALL, no-new-privileges,
-      # init, pid limit, plain tmpfs for /tmp and /data with no uid override).
+      # init, pid limit, tmpfs for /tmp and for /data owned by uid/gid 1000
+      # so the non-root node user can open the SQLite database).
       - name: Boot under the Factory preview envelope
         run: docker compose -f compose.preview.yml up -d --build
       - name: Wait for health

@@ -32,4 +32,4 @@ services:
     restart: unless-stopped
     tmpfs:
       - /tmp
-      - "/data:uid=1000,gid=1000"
+      - "/data:uid=1000,gid=1000,mode=0700"
