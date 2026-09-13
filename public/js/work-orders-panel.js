@@ -17,6 +17,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = ()
   const commentForm = $('#wo-comment-form');
   const checklistBox = $('#wo-checklist');
   let openTimeLog = null;
+  let elapsedTimer = null;
   let orders = [];
   let directory = [];
   let openOrderId = null;
@@ -159,15 +160,47 @@ export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = ()
     }
   }
 
-  function renderTimer(timeLogs, totalMinutes) {
+  function formatDuration(totalSeconds) {
+    if (!totalSeconds) return 'No time logged';
+    const totalMinutes = Math.floor(totalSeconds / 60);
+    if (totalMinutes === 0) return '<1m logged';
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours ? `${hours}h ` : ''}${minutes}m logged`;
+  }
+
+  function formatElapsed(startedAt) {
+    const seconds = Math.max(0, Math.round((Date.now() - Date.parse(startedAt)) / 1000));
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    const pad = (value) => String(value).padStart(2, '0');
+    return hours ? `${hours}:${pad(minutes)}:${pad(secs)}` : `${minutes}:${pad(secs)}`;
+  }
+
+  function stopElapsedTimer() {
+    if (elapsedTimer) {
+      clearInterval(elapsedTimer);
+      elapsedTimer = null;
+    }
+  }
+
+  function renderElapsed() {
+    if (!openTimeLog) {
+      $('#wo-time-elapsed').textContent = '';
+      return;
+    }
+    $('#wo-time-elapsed').textContent = `Running · ${formatElapsed(openTimeLog.startedAt)}`;
+  }
+
+  function renderTimer(timeLogs, totalSeconds) {
     openTimeLog = timeLogs.find((log) => log.endedAt === null && log.userId === currentUser.id) ?? null;
     $('#wo-timer').textContent = openTimeLog ? 'Stop timer' : 'Start timer';
     $('#wo-timer').classList.toggle('active', Boolean(openTimeLog));
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    $('#wo-time-total').textContent = totalMinutes
-      ? `${hours ? `${hours}h ` : ''}${minutes}m logged`
-      : 'No time logged';
+    $('#wo-time-total').textContent = formatDuration(totalSeconds);
+    stopElapsedTimer();
+    renderElapsed();
+    if (openTimeLog) elapsedTimer = setInterval(renderElapsed, 1000);
   }
 
   async function openEditor(order = null, preset = {}) {
@@ -201,7 +234,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = ()
         total: detail.checklist.length,
         done: detail.checklist.filter((item) => item.isDone).length,
       });
-      renderTimer(detail.timeLogs, detail.totalMinutes);
+      renderTimer(detail.timeLogs, detail.totalSeconds);
     } catch (error) {
       errorBox.textContent = error.message;
     }

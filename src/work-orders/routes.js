@@ -56,6 +56,7 @@ export function createWorkOrderRouter({ db, workOrders, sites, users, templates,
         checklist: checklist.listFor(order.id),
         timeLogs: timeLogs.listFor(order.id),
         totalMinutes: timeLogs.totalMinutes(order.id),
+        totalSeconds: timeLogs.totalSeconds(order.id),
       });
     } catch (error) {
       return next(error);
@@ -209,6 +210,7 @@ export function createWorkOrderRouter({ db, workOrders, sites, users, templates,
         ok: true,
         timeLogs: timeLogs.listFor(order.id),
         totalMinutes: timeLogs.totalMinutes(order.id),
+        totalSeconds: timeLogs.totalSeconds(order.id),
       });
     } catch (error) {
       return next(error);
@@ -252,7 +254,12 @@ export function createWorkOrderRouter({ db, workOrders, sites, users, templates,
           userId: req.user.id, action: 'work_order.time_stop', entityType: 'work_order', entityId: order.id,
           details: { timeLogId: log.id, minutes: log.minutes },
         });
-        return res.json({ ok: true, timeLog: log, totalMinutes: timeLogs.totalMinutes(order.id) });
+        return res.json({
+          ok: true,
+          timeLog: log,
+          totalMinutes: timeLogs.totalMinutes(order.id),
+          totalSeconds: timeLogs.totalSeconds(order.id),
+        });
       } catch (error) {
         return next(error);
       }
@@ -267,7 +274,12 @@ export function createWorkOrderRouter({ db, workOrders, sites, users, templates,
       try {
         const order = loadOrder(req.validated.params.id);
         const log = timeLogs.addManual(order.id, req.user.id, req.validated.body);
-        return res.status(201).json({ ok: true, timeLog: log, totalMinutes: timeLogs.totalMinutes(order.id) });
+        return res.status(201).json({
+          ok: true,
+          timeLog: log,
+          totalMinutes: timeLogs.totalMinutes(order.id),
+          totalSeconds: timeLogs.totalSeconds(order.id),
+        });
       } catch (error) {
         return next(error);
       }

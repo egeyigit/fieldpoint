@@ -1,10 +1,19 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { SITE, bootApp, createMember, registerAdmin } from './helpers.js';
-import { minutesBetween } from '../src/work-orders/time-logs.js';
+import { minutesBetween, secondsBetween } from '../src/work-orders/time-logs.js';
+
+describe('secondsBetween', () => {
+  it('measures whole seconds and never goes negative', () => {
+    assert.equal(secondsBetween('2026-01-01T10:00:00Z', '2026-01-01T10:00:20Z'), 20);
+    assert.equal(secondsBetween('2026-01-01T10:00:00Z', '2026-01-01T10:30:00Z'), 1800);
+    assert.equal(secondsBetween('2026-01-01T10:30:00Z', '2026-01-01T10:00:00Z'), 0);
+    assert.equal(secondsBetween('nonsense', '2026-01-01T10:00:00Z'), 0);
+  });
+});
 
 describe('minutesBetween', () => {
-  it('rounds to whole minutes and never goes negative', () => {
+  it('floors to whole minutes and never goes negative', () => {
     assert.equal(minutesBetween('2026-01-01T10:00:00Z', '2026-01-01T10:30:00Z'), 30);
     assert.equal(minutesBetween('2026-01-01T10:00:00Z', '2026-01-01T10:00:20Z'), 0);
     assert.equal(minutesBetween('2026-01-01T10:30:00Z', '2026-01-01T10:00:00Z'), 0);
@@ -59,6 +68,30 @@ describe('work order time logs', () => {
   it('refuses to stop a timer that is not running here', async () => {
     const response = await ctx.agent.post(`/api/work-orders/${orderId}/time/stop`).send({});
     assert.equal(response.status, 409);
+  });
+
+  it('keeps a sub-minute session as seconds rather than losing it', async () => {
+    const logged = await ctx.agent.post(`/api/work-orders/${orderId}/time`).send({
+      startedAt: '2026-01-01T08:00:00Z',
+      endedAt: '2026-01-01T08:00:20Z',
+    });
+    assert.equal(logged.status, 201);
+    assert.equal(logged.body.timeLog.seconds, 20);
+    assert.equal(logged.body.timeLog.minutes, 0);
+    assert.equal(logged.body.totalSeconds, 20);
+    assert.equal(logged.body.totalMinutes, 0);
+  });
+
+  it('accumulates three short sessions across the minute boundary', async () => {
+    for (const start of ['08:00:00', '09:00:00', '10:00:00']) {
+      await ctx.agent.post(`/api/work-orders/${orderId}/time`).send({
+        startedAt: `2026-01-01T${start}Z`,
+        endedAt: `2026-01-01T${start.slice(0, 6)}40Z`,
+      });
+    }
+    const listed = await ctx.agent.get(`/api/work-orders/${orderId}/time`);
+    assert.equal(listed.body.totalSeconds, 120);
+    assert.equal(listed.body.totalMinutes, 2);
   });
 
   it('accepts a manual entry and rejects a backwards one', async () => {

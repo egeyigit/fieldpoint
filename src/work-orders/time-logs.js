@@ -2,14 +2,20 @@ const COLUMNS = `l.id, l.work_order_id AS workOrderId, l.user_id AS userId, u.na
   l.started_at AS startedAt, l.ended_at AS endedAt, l.note, l.created_at AS createdAt`;
 const FROM = `FROM work_order_time_logs l LEFT JOIN users u ON u.id = l.user_id`;
 
-const MS_PER_MINUTE = 60_000;
+const MS_PER_SECOND = 1000;
+const SECONDS_PER_MINUTE = 60;
 
-/** Whole minutes between two ISO timestamps, never negative. */
-export function minutesBetween(startedAt, endedAt) {
+/** Whole seconds between two ISO timestamps, never negative. */
+export function secondsBetween(startedAt, endedAt) {
   const start = Date.parse(startedAt);
   const end = Date.parse(endedAt);
   if (Number.isNaN(start) || Number.isNaN(end)) return 0;
-  return Math.max(0, Math.round((end - start) / MS_PER_MINUTE));
+  return Math.max(0, Math.round((end - start) / MS_PER_SECOND));
+}
+
+/** Whole minutes between two ISO timestamps, never negative. */
+export function minutesBetween(startedAt, endedAt) {
+  return Math.floor(secondsBetween(startedAt, endedAt) / SECONDS_PER_MINUTE);
 }
 
 export function createTimeLogRepository(db) {
@@ -23,7 +29,13 @@ export function createTimeLogRepository(db) {
   const remove = db.prepare(`DELETE FROM work_order_time_logs WHERE id = ?`);
 
   const hydrate = (row) =>
-    row ? { ...row, minutes: row.endedAt ? minutesBetween(row.startedAt, row.endedAt) : null } : null;
+    row
+      ? {
+          ...row,
+          seconds: row.endedAt ? secondsBetween(row.startedAt, row.endedAt) : null,
+          minutes: row.endedAt ? minutesBetween(row.startedAt, row.endedAt) : null,
+        }
+      : null;
 
   return {
     findById: (id) => hydrate(byId.get(id)),
@@ -44,11 +56,15 @@ export function createTimeLogRepository(db) {
       return hydrate(byId.get(Number(result.lastInsertRowid)));
     },
     remove: (id) => remove.run(id).changes > 0,
-    /** Total logged minutes, ignoring an entry that is still running. */
-    totalMinutes(workOrderId) {
+    /** Total logged seconds, ignoring an entry that is still running. */
+    totalSeconds(workOrderId) {
       return listFor
         .all(workOrderId)
-        .reduce((sum, row) => sum + (row.endedAt ? minutesBetween(row.startedAt, row.endedAt) : 0), 0);
+        .reduce((sum, row) => sum + (row.endedAt ? secondsBetween(row.startedAt, row.endedAt) : 0), 0);
+    },
+    /** Total logged minutes, ignoring an entry that is still running. */
+    totalMinutes(workOrderId) {
+      return Math.floor(this.totalSeconds(workOrderId) / SECONDS_PER_MINUTE);
     },
   };
 }
