@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import request from 'supertest';
 import { bootApp } from './helpers.js';
 import { loadConfig } from '../src/config.js';
+import { createApp } from '../src/app.js';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -65,6 +67,42 @@ describe('config', () => {
     assert.equal(first.sessionSecret, second.sessionSecret);
     assert.ok(existsSync(join(dir, '.session-secret')));
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('defaults trust proxy to 1 in production and off elsewhere', () => {
+    assert.equal(loadConfig({ DB_PATH: ':memory:', SESSION_SECRET: 'x'.repeat(40), NODE_ENV: 'production' }).trustProxy, 1);
+    assert.equal(loadConfig({ DB_PATH: ':memory:', SESSION_SECRET: 'x'.repeat(40) }).trustProxy, false);
+  });
+
+  it('parses the full trust-proxy vocabulary', () => {
+    const base = { DB_PATH: ':memory:', SESSION_SECRET: 'x'.repeat(40) };
+    assert.equal(loadConfig({ ...base, TRUST_PROXY: 'false' }).trustProxy, false);
+    assert.equal(loadConfig({ ...base, TRUST_PROXY: 'true' }).trustProxy, true);
+    assert.equal(loadConfig({ ...base, TRUST_PROXY: '2' }).trustProxy, 2);
+    assert.equal(loadConfig({ ...base, TRUST_PROXY: 'loopback' }).trustProxy, 'loopback');
+    assert.deepEqual(loadConfig({ ...base, TRUST_PROXY: '10.0.0.0/8, 127.0.0.1' }).trustProxy, ['10.0.0.0/8', '127.0.0.1']);
+  });
+
+  it('throws at boot on an invalid trust-proxy value', () => {
+    assert.throws(
+      () => loadConfig({ DB_PATH: ':memory:', SESSION_SECRET: 'x'.repeat(40), TRUST_PROXY: 'nonsense' }),
+      /invalid TRUST_PROXY/,
+    );
+  });
+
+  it('resolves req.ip to the client behind two proxy hops', async () => {
+    const config = loadConfig({ NODE_ENV: 'test', DB_PATH: ':memory:', SESSION_SECRET: 'x'.repeat(40), TRUST_PROXY: '2' });
+    const { app, db } = createApp(config);
+    app.get('/__ip', (req, res) => res.json({ ip: req.ip }));
+    try {
+      const response = await request(app)
+        .get('/__ip')
+        .set('X-Forwarded-For', '203.0.113.7, 10.0.0.2, 10.0.0.1');
+      assert.equal(response.status, 200);
+      assert.equal(response.body.ip, '203.0.113.7');
+    } finally {
+      db.close();
+    }
   });
 
   it('applies defaults and parses overrides', () => {

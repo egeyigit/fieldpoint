@@ -60,6 +60,7 @@ Copy `.env.example` to `.env` (or export variables). All optional in development
 | `SESSION_TTL_HOURS` | `72` | Session lifetime |
 | `NODE_ENV` | `development` | `production` enables secure cookies + trust-proxy |
 | `ALLOWED_ORIGINS` | same-origin only | Comma-separated extra origins allowed to mutate |
+| `TRUST_PROXY` | `1` in production, off otherwise | Express trust-proxy setting; match your real proxy chain (e.g. `2` behind CDN → Caddy) so `req.ip` — the rate-limit key — is the client. Accepts `false`/`true`, a hop count, a named network (`loopback`/`linklocal`/`uniquelocal`), or a comma-separated IP/CIDR list. Invalid values fail at boot. |
 
 `npm start` loads `.env` when present (`--env-file-if-exists`).
 

@@ -63,6 +63,37 @@ function resolveDbPath(dbPath) {
   return resolve(PROJECT_ROOT, dbPath);
 }
 
+const CIDR_RE = /^([0-9]{1,3}\.){3}[0-9]{1,3}(\/[0-9]{1,2})?$/;
+const NAMED_NETWORKS = new Set(['loopback', 'linklocal', 'uniquelocal']);
+
+/**
+ * Express `trust proxy` value. Accepts the full Express vocabulary so an
+ * operator can match the real proxy chain without a source edit:
+ *   - unset          -> 1 hop in production, off elsewhere (previous default)
+ *   - `false`/`true` -> booleans
+ *   - a hop count    -> number of proxies between client and app
+ *   - a named net    -> `loopback`, `linklocal`, `uniquelocal`
+ *   - a CIDR/IP list -> comma-separated subnets/addresses (named nets allowed)
+ * An unrecognised value throws so a misconfiguration fails at boot rather than
+ * silently trusting the wrong hops.
+ */
+function resolveTrustProxy(value, isProduction) {
+  const raw = value?.trim();
+  if (!raw) return isProduction ? 1 : false;
+  if (raw === 'false') return false;
+  if (raw === 'true') return true;
+  if (/^\d+$/.test(raw)) return Number.parseInt(raw, 10);
+  const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length > 0 && parts.every((p) => NAMED_NETWORKS.has(p) || CIDR_RE.test(p))) {
+    return parts.length === 1 ? parts[0] : parts;
+  }
+  throw new Error(
+    `[config] invalid TRUST_PROXY value ${JSON.stringify(raw)}; ` +
+      'expected false, true, a hop count, a named network (loopback/linklocal/uniquelocal), ' +
+      'or a comma-separated list of IPs/CIDRs',
+  );
+}
+
 function parseOrigins(value) {
   if (!value) return [];
   return value
@@ -73,11 +104,13 @@ function parseOrigins(value) {
 
 export function loadConfig(env = process.env) {
   const nodeEnv = env.NODE_ENV ?? 'development';
+  const isProduction = nodeEnv === 'production';
   const dbPath = resolveDbPath(env.DB_PATH?.trim() || './data/fieldpoint.db');
   return Object.freeze({
     nodeEnv,
-    isProduction: nodeEnv === 'production',
+    isProduction,
     isTest: nodeEnv === 'test',
+    trustProxy: resolveTrustProxy(env.TRUST_PROXY, isProduction),
     port: parseIntOr(env.PORT, DEFAULT_PORT),
     host: env.HOST?.trim() || '0.0.0.0',
     dbPath,

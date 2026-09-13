@@ -40,7 +40,8 @@ export function createApp(config) {
 
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', config.isProduction ? 1 : false);
+  app.set('trust proxy', config.trustProxy);
+  if (!config.isTest) console.log(`[fieldpoint] trust proxy: ${JSON.stringify(config.trustProxy)}`);
 
   app.use(
     helmet({
