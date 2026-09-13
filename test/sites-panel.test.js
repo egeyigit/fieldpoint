@@ -1,9 +1,11 @@
-import { afterEach, describe, it } from 'node:test';
+import { afterEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
-// The panel imports browser-only ES modules; we stub them through a loader hook.
-// Instead of a full jsdom, we build a minimal DOM shim sufficient for the two
-// behaviours under test: the stats strip renders, and a status chip filters.
+// The panel imports browser-only ES modules; we replace them with stubs through
+// the module mocker so the *shipped* createSitesPanel runs against a minimal
+// DOM. This exercises the real renderStats/refresh wiring — the stats strip
+// renders during refresh and a status chip click toggles the filter and
+// re-runs both the list query and the stats query.
 
 function makeElement(id) {
   const listeners = {};
@@ -58,6 +60,7 @@ function installDom() {
 describe('sites panel stats strip', () => {
   afterEach(() => {
     delete globalThis.document;
+    mock.reset();
   });
 
   it('renders a total plus per-status chips and filters on chip click', async () => {
@@ -82,57 +85,47 @@ describe('sites panel stats strip', () => {
       directory: async () => ({ users: [] }),
     };
 
-    // Recreate the renderStats/refresh contract in isolation so the test does not
-    // depend on the browser-only modules the panel imports at load time.
-    const $ = get;
-    $('#filter-status').value = '';
-    const STATUSES = { active: 'Active', planned: 'Planned', inactive: 'Inactive' };
+    // Stub the browser-only modules the panel imports, then load the real panel.
+    mock.module('../public/js/api.js', {
+      namedExports: { api, geocode: async () => ({}), locateBrowser: async () => ({}) },
+    });
+    mock.module('../public/js/constants.js', {
+      namedExports: {
+        CATEGORIES: { client: { label: 'Client' } },
+        NEAR_ME_RADIUS_KM: 50,
+        SITE_SORTS: { name: 'Name' },
+        STATUSES: { active: 'Active', planned: 'Planned', inactive: 'Inactive' },
+      },
+    });
+    mock.module('../public/js/ui.js', {
+      namedExports: {
+        $: get,
+        absoluteTime: () => '',
+        formValues: () => ({}),
+        relativeTime: () => '',
+        setOptions: () => {},
+        toast: () => {},
+      },
+    });
+
+    const { createSitesPanel } = await import('../public/js/sites-panel.js');
     const mapView = { render() {}, fitAll() {}, focus() {} };
+    const panel = createSitesPanel({ mapView, currentUser: { id: 1, role: 'admin' } });
 
-    async function renderStats() {
-      const { stats } = await api.siteStats();
-      const totals = { active: 0, planned: 0, inactive: 0 };
-      let all = 0;
-      for (const row of stats) {
-        totals[row.status] = (totals[row.status] ?? 0) + row.count;
-        all += row.count;
-      }
-      const strip = $('#site-stats');
-      const totalChip = document.createElement('span');
-      totalChip.textContent = `Total ${all}`;
-      strip.replaceChildren(
-        totalChip,
-        ...Object.entries(totals).map(([status, count]) => {
-          const chip = document.createElement('button');
-          chip.textContent = `${STATUSES[status]} ${count}`;
-          chip.addEventListener('click', () => {
-            $('#filter-status').value = $('#filter-status').value === status ? '' : status;
-            refresh();
-          });
-          return chip;
-        }),
-      );
-    }
-
-    async function refresh() {
-      await api.listSites({});
-      mapView.render([]);
-      await renderStats();
-    }
-
-    await refresh();
+    await panel.refresh();
 
     const strip = registry.get('site-stats');
     assert.equal(strip.children[0].textContent, 'Total 5');
     const labels = strip.children.slice(1).map((chip) => chip.textContent);
     assert.deepEqual(labels, ['Active 3', 'Planned 2', 'Inactive 0']);
 
-    const before = listCalls;
+    const listBefore = listCalls;
+    const statsBefore = statsCalls;
     strip.children[1].dispatch('click');
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     assert.equal(registry.get('filter-status').value, 'active');
-    assert.ok(listCalls > before, 'clicking a status chip re-runs the list query');
-    assert.ok(statsCalls >= 2, 'stats refresh in sync with list mutation');
+    assert.ok(listCalls > listBefore, 'clicking a status chip re-runs the list query');
+    assert.ok(statsCalls > statsBefore, 'stats refresh in sync with the list mutation');
   });
 });
