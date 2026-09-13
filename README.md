@@ -41,7 +41,7 @@ Requires Node.js 22.13+ (uses `node:sqlite`).
 
 ```bash
 npm install
-npm start         # http://localhost:4100 (LAN address printed too); demo data seeded on boot
+npm start         # http://localhost:4100 (loopback-only in dev); demo data seeded on boot
 ```
 
 Set `SEED_DEMO=false` to start empty; the sign-in screen then offers to create the first administrator.
@@ -53,7 +53,7 @@ Copy `.env.example` to `.env` (or export variables). All optional in development
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `PORT` | `4100` | HTTP port |
-| `HOST` | `0.0.0.0` | Bind address; use `127.0.0.1` to keep it local |
+| `HOST` | `127.0.0.1` (dev) / `0.0.0.0` (production) | Bind address; set `0.0.0.0` to expose on your LAN |
 | `DB_PATH` | `./data/fieldpoint.db` | SQLite file, directory auto-created |
 | `SESSION_SECRET` | generated and persisted at `<DB dir>/.session-secret` | Set explicitly (32+ chars) for anything that is not a demo; production logs a warning when unset |
 | `SEED_DEMO` | `false` (`true` in `.env` / `Dockerfile`) | Seed demo accounts + sites on boot |

@@ -73,13 +73,19 @@ function parseOrigins(value) {
 
 export function loadConfig(env = process.env) {
   const nodeEnv = env.NODE_ENV ?? 'development';
+  const isProduction = nodeEnv === 'production';
   const dbPath = resolveDbPath(env.DB_PATH?.trim() || './data/fieldpoint.db');
+  // Bind to every interface only when explicitly asked or in production. A bare
+  // `npm start` on a shared network must not put the demo admin on the LAN, so
+  // the default is loopback outside production and container contexts (which set
+  // HOST explicitly in the Dockerfile / deploy config).
+  const host = env.HOST?.trim() || (isProduction ? '0.0.0.0' : '127.0.0.1');
   return Object.freeze({
     nodeEnv,
-    isProduction: nodeEnv === 'production',
+    isProduction,
     isTest: nodeEnv === 'test',
     port: parseIntOr(env.PORT, DEFAULT_PORT),
-    host: env.HOST?.trim() || '0.0.0.0',
+    host,
     dbPath,
     sessionSecret: resolveSessionSecret(env, dbPath),
     sessionTtlMs: parseIntOr(env.SESSION_TTL_HOURS, DEFAULT_SESSION_TTL_HOURS) * 60 * 60 * 1000,
