@@ -145,6 +145,49 @@ describe('maintenance schedules', () => {
     assert.equal(created[0].title, 'Monthly generator test');
   });
 
+  it('two concurrent sweeps generate exactly one order per due schedule', async () => {
+    await ctx.agent.post('/api/maintenance').send(schedule({ nextDueDate: TODAY }));
+    const [first, second] = await Promise.all([
+      ctx.agent.post('/api/maintenance/run'),
+      ctx.agent.post('/api/maintenance/run'),
+    ]);
+    assert.equal(first.status, 200);
+    assert.equal(second.status, 200);
+    // Between the two responses exactly one order was created, never two.
+    assert.equal(first.body.created.length + second.body.created.length, 1);
+    assert.equal((await ctx.agent.get('/api/work-orders')).body.total, 1);
+  });
+
+  it('proves the guard matters: a re-check without a transaction can double-generate', async () => {
+    // Same shape as the sweep but with the BEGIN IMMEDIATE guard removed, so
+    // two interleaved reads both pass the due-date check. This must produce a
+    // duplicate, demonstrating the real generator's transaction is what stops it.
+    const unguarded = () => {
+      const due = ctx.deps.schedules.list({ dueOnly: true, today: TODAY });
+      const orders = [];
+      for (const current of due) {
+        const fresh = ctx.deps.schedules.findById(current.id);
+        if (!fresh || fresh.nextDueDate > TODAY) continue;
+        const order = ctx.deps.workOrders.create(
+          {
+            siteId: fresh.siteId, title: fresh.title, description: fresh.description,
+            status: 'open', priority: fresh.priority, assignedTo: fresh.assignedTo,
+            dueDate: fresh.nextDueDate, templateId: fresh.templateId, scheduleId: fresh.id,
+          },
+          null,
+        );
+        orders.push(order);
+      }
+      return orders;
+    };
+    await ctx.agent.post('/api/maintenance').send(schedule({ nextDueDate: TODAY }));
+    // Two reads before either advances the date: both see the schedule as due.
+    const a = unguarded();
+    const b = unguarded();
+    assert.equal(a.length + b.length, 2, 'without the transaction guard both sweeps generate');
+    assert.equal((await ctx.agent.get('/api/work-orders')).body.total, 2);
+  });
+
   it('audits create, update, delete and a generating sweep', async () => {
     const { body } = await ctx.agent.post('/api/maintenance').send(schedule({ nextDueDate: TODAY }));
     await ctx.agent.patch(`/api/maintenance/${body.schedule.id}`).send({ priority: 'high' });

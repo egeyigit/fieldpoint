@@ -43,10 +43,28 @@ export function generateDueWorkOrders(db, { schedules, workOrders, checklist, te
       db.exec('COMMIT');
       created.push({ scheduleId: current.id, workOrderId: order.id, title: order.title });
     } catch (error) {
-      db.exec('ROLLBACK');
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // Nothing to roll back if BEGIN itself lost the race for the lock.
+      }
+      // Lock contention past busy_timeout is a concurrent writer, not a bug:
+      // the other sweep is generating this schedule, so skip and log instead
+      // of crashing the whole run.
+      if (isBusyError(error)) {
+        console.warn(`[maintenance] schedule ${schedule.id} skipped: database busy`);
+        continue;
+      }
       // One bad schedule must not stop the sweep for every other site.
       console.error(`[maintenance] schedule ${schedule.id} failed to generate`, error);
     }
   }
   return created;
+}
+
+/** True for SQLite lock errors that outlasted busy_timeout. */
+function isBusyError(error) {
+  const code = error && (error.code ?? error.errcode);
+  if (typeof code === 'string' && (code === 'SQLITE_BUSY' || code === 'SQLITE_LOCKED')) return true;
+  return typeof error?.message === 'string' && /SQLITE_BUSY|SQLITE_LOCKED|database is locked|database table is locked/i.test(error.message);
 }
