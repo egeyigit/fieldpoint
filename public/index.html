@@ -76,7 +76,10 @@
         </div>
         <div class="row between">
           <span class="muted" id="wo-count">0 work orders</span>
-          <button id="wo-add" class="primary small" type="button">+ New work order</button>
+          <div class="row gap">
+            <a id="wo-export-btn" class="ghost small" href="/api/work-orders/export.csv">Export CSV</a>
+            <button id="wo-add" class="primary small" type="button">+ New work order</button>
+          </div>
         </div>
         <ul id="wo-list" class="site-list" aria-label="Work order list"></ul>
       </div>
