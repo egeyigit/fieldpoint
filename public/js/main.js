@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { loadCategories } from './categories.js';
 import { createMapView } from './map.js';
 import { createSitesPanel } from './sites-panel.js';
 import { createWorkOrdersPanel } from './work-orders-panel.js';
@@ -21,6 +22,7 @@ function showAuth({ needsBootstrap }) {
 async function showApp(user) {
   $('#auth-view').hidden = true;
   $('#app-view').hidden = false;
+  await loadCategories();
   $('#user-label').textContent = `${user.email} · ${user.role}`;
   $('#admin-tab').hidden = user.role !== 'admin';
 

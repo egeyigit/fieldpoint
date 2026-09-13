@@ -1,5 +1,6 @@
 import { api, geocode, locateBrowser } from './api.js';
-import { CATEGORIES, NEAR_ME_RADIUS_KM, SITE_SORTS, STATUSES } from './constants.js';
+import { NEAR_ME_RADIUS_KM, SITE_SORTS, STATUSES } from './constants.js';
+import { categoryLabel, getCategories } from './categories.js';
 import { $, absoluteTime, formValues, relativeTime, setOptions, toast } from './ui.js';
 
 const PAGE_SIZE = 1000;
@@ -16,10 +17,11 @@ export function createSitesPanel({ mapView, currentUser }) {
   let selectedId = null;
   let nearMe = null;
 
-  setOptions($('#filter-category'), Object.entries(CATEGORIES).map(([key, value]) => [key, value.label]), { placeholder: 'All categories' });
+  const categoryOptions = () => Object.entries(getCategories()).map(([key, value]) => [key, value.label]);
+  setOptions($('#filter-category'), categoryOptions(), { placeholder: 'All categories' });
   setOptions($('#filter-status'), Object.entries(STATUSES), { placeholder: 'All statuses' });
   setOptions($('#site-sort'), Object.entries(SITE_SORTS), { selected: 'name' });
-  setOptions($('#form-category'), Object.entries(CATEGORIES).map(([key, value]) => [key, value.label]));
+  setOptions($('#form-category'), categoryOptions());
   setOptions($('#form-status'), Object.entries(STATUSES));
   $('#recycle-bin-row').hidden = currentUser.role !== 'admin';
 
@@ -71,7 +73,7 @@ export function createSitesPanel({ mapView, currentUser }) {
     sub.className = 'sub';
     const distance = site.distanceKm === undefined ? '' : ` · ${site.distanceKm.toFixed(1)} km`;
     sub.textContent =
-      `${CATEGORIES[site.category]?.label ?? site.category} · ` +
+      `${categoryLabel(site.category)} · ` +
       `${site.address || `${site.lat.toFixed(4)}, ${site.lng.toFixed(4)}`}${distance}`;
 
     const meta = document.createElement('div');
@@ -188,7 +190,8 @@ export function createSitesPanel({ mapView, currentUser }) {
     errorBox.textContent = '';
     $('#site-dialog-title').textContent = site ? 'Edit site' : 'New site';
     $('#delete-btn').hidden = !(site && currentUser.role === 'admin');
-    const values = site ?? { category: 'client', status: 'active', ...preset };
+    const [firstCategory] = Object.keys(getCategories());
+    const values = site ?? { category: firstCategory ?? 'client', status: 'active', ...preset };
     for (const [key, value] of Object.entries(values)) {
       if (form.elements[key] && key !== 'assignedTo') form.elements[key].value = value ?? '';
     }

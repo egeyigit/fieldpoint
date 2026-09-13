@@ -12,6 +12,8 @@ import { createUserRepository } from './users/repository.js';
 import { createUserRouter } from './users/routes.js';
 import { createSiteRepository } from './sites/repository.js';
 import { createSiteRouter } from './sites/routes.js';
+import { createSiteCategoryRepository } from './site-categories/repository.js';
+import { createSiteCategoryRouter } from './site-categories/routes.js';
 import { createWorkOrderRepository } from './work-orders/repository.js';
 import { createWorkOrderRouter } from './work-orders/routes.js';
 import { requestLogger } from './middleware/logging.js';
@@ -35,8 +37,9 @@ export function createApp(config) {
   const sessions = createSessionStore(db, { secret: config.sessionSecret, ttlMs: config.sessionTtlMs });
   const users = createUserRepository(db);
   const sites = createSiteRepository(db);
+  const siteCategories = createSiteCategoryRepository(db);
   const workOrders = createWorkOrderRepository(db);
-  const deps = { db, sessions, users, sites, workOrders, config };
+  const deps = { db, sessions, users, sites, siteCategories, workOrders, config };
 
   const app = express();
   app.disable('x-powered-by');
@@ -95,6 +98,7 @@ export function createApp(config) {
   app.use('/api/auth', createAuthRouter(deps));
   app.use('/api/users', createUserRouter(deps));
   app.use('/api/sites', createSiteRouter(deps));
+  app.use('/api/site-categories', createSiteCategoryRouter(deps));
   app.use('/api/work-orders', createWorkOrderRouter(deps));
   app.use('/api', notFoundHandler);
 

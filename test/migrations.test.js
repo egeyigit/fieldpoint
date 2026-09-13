@@ -17,11 +17,13 @@ describe('migrations', () => {
   it('build every table on a fresh database', () => {
     const db = openDatabase(':memory:');
     try {
-      for (const table of ['users', 'sessions', 'sites', 'audit_log', 'work_orders', 'work_order_comments']) {
+      for (const table of ['users', 'sessions', 'sites', 'site_categories', 'audit_log', 'work_orders', 'work_order_comments']) {
         assert.ok(tableNames(db).includes(table), `missing ${table}`);
       }
       const version = db.prepare(`SELECT value FROM schema_meta WHERE key = 'version'`).get().value;
       assert.equal(Number(version), LATEST_VERSION);
+      const slugs = db.prepare('SELECT slug FROM site_categories ORDER BY slug').all().map((row) => row.slug);
+      assert.deepEqual(slugs, ['client', 'job_site', 'office', 'other', 'vehicle', 'warehouse']);
     } finally {
       db.close();
     }
@@ -56,6 +58,8 @@ describe('migrations', () => {
       assert.equal(result.applied, MIGRATIONS.length - 1);
       assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sites').get().count, 1);
       assert.equal(db.prepare('SELECT name FROM sites').get().name, 'Kept');
+      assert.equal(db.prepare('SELECT category FROM sites').get().category, 'office');
+      assert.ok(tableNames(db).includes('site_categories'));
       assert.ok(tableNames(db).includes('work_orders'));
       // New columns exist and default to NULL on pre-existing rows.
       const site = db.prepare('SELECT assigned_to, deleted_at FROM sites').get();

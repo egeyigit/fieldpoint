@@ -1,4 +1,5 @@
-import { CATEGORIES, DEFAULT_VIEW } from './constants.js';
+import { DEFAULT_VIEW } from './constants.js';
+import { categoryColor, categoryLabel } from './categories.js';
 
 const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
@@ -10,7 +11,7 @@ function escapeHtml(text) {
 }
 
 function pinIcon(category, status) {
-  const color = CATEGORIES[category]?.color ?? CATEGORIES.other.color;
+  const color = categoryColor(category);
   const opacity = status === 'inactive' ? 0.45 : 1;
   return L.divIcon({
     className: '',
@@ -74,7 +75,7 @@ export function createMapView(element, { onSelect, onAddAt }) {
         const assignee = site.assignedToName ? ` · ${escapeHtml(site.assignedToName)}` : '';
         marker.bindPopup(
           `<b>${escapeHtml(site.name)}</b><br><span style="opacity:.7">${escapeHtml(site.address || '—')}</span>` +
-            `<br><small>${escapeHtml(CATEGORIES[site.category]?.label ?? site.category)} · ${escapeHtml(site.status)}${assignee}</small>`,
+            `<br><small>${escapeHtml(categoryLabel(site.category))} · ${escapeHtml(site.status)}${assignee}</small>`,
         );
         marker.on('click', () => onSelect(site.id));
         marker.addTo(layer);

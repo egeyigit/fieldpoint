@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-export const SITE_CATEGORIES = ['office', 'warehouse', 'client', 'job_site', 'vehicle', 'other'];
 export const SITE_STATUSES = ['active', 'inactive', 'planned'];
 export const SITE_SORTS = ['name', 'created', 'updated', 'distance'];
 
@@ -8,6 +7,7 @@ const MAX_NAME = 120;
 const MAX_ADDRESS = 300;
 const MAX_NOTES = 2000;
 const MAX_SEARCH = 100;
+const MAX_CATEGORY = 40;
 const MAX_LIMIT = 1000;
 const MAX_RADIUS_KM = 20000;
 
@@ -16,7 +16,7 @@ const fields = {
   address: z.string().trim().max(MAX_ADDRESS),
   lat: z.coerce.number().min(-90).max(90),
   lng: z.coerce.number().min(-180).max(180),
-  category: z.enum(SITE_CATEGORIES),
+  category: z.string().trim().min(1).max(MAX_CATEGORY),
   status: z.enum(SITE_STATUSES),
   notes: z.string().trim().max(MAX_NOTES),
   assignedTo: z.coerce.number().int().positive().nullable(),
@@ -41,7 +41,7 @@ export const siteIdSchema = z.object({ id: z.coerce.number().int().positive() })
 export const listSitesSchema = z
   .object({
     q: z.string().trim().max(MAX_SEARCH).optional(),
-    category: z.enum(SITE_CATEGORIES).optional(),
+    category: z.string().trim().min(1).max(MAX_CATEGORY).optional(),
     status: z.enum(SITE_STATUSES).optional(),
     assignedTo: z.coerce.number().int().positive().optional(),
     // Map viewport filter. All four are required together.

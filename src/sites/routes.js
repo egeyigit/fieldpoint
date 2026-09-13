@@ -14,7 +14,7 @@ const includeDeletedSchema = z.object({
     .default(false),
 });
 
-export function createSiteRouter({ db, sites, users }) {
+export function createSiteRouter({ db, sites, users, siteCategories }) {
   const router = Router();
   router.use(requireAuth);
 
@@ -25,6 +25,18 @@ export function createSiteRouter({ db, sites, users }) {
     if (!user) throw new HttpError(400, 'Assigned user does not exist', [{ path: 'assignedTo', message: 'Unknown user' }]);
     if (!user.isActive) {
       throw new HttpError(400, 'Assigned user is deactivated', [{ path: 'assignedTo', message: 'User is not active' }]);
+    }
+  }
+
+  /**
+   * Rejects a category slug that is not a live (unarchived) category. Archived
+   * slugs stay valid on existing sites but cannot be assigned to a new one or
+   * moved onto during an update.
+   */
+  function assertAssignableCategory(category) {
+    if (category === undefined) return;
+    if (!siteCategories.isActive(category)) {
+      throw new HttpError(400, 'Unknown site category', [{ path: 'category', message: 'Unknown category' }]);
     }
   }
 
@@ -79,6 +91,7 @@ export function createSiteRouter({ db, sites, users }) {
   router.post('/', validate(createSiteSchema), (req, res, next) => {
     try {
       assertAssignable(req.validated.body.assignedTo);
+      assertAssignableCategory(req.validated.body.category);
       const site = sites.create(req.validated.body, req.user.id);
       recordAudit(db, {
         userId: req.user.id, action: 'site.create', entityType: 'site', entityId: site.id,
@@ -95,6 +108,7 @@ export function createSiteRouter({ db, sites, users }) {
       const { id } = req.validated.params;
       if (!sites.findVisibleById(id)) throw new HttpError(404, 'Site not found');
       assertAssignable(req.validated.body.assignedTo);
+      assertAssignableCategory(req.validated.body.category);
       const site = sites.update(id, req.validated.body, req.user.id);
       recordAudit(db, {
         userId: req.user.id, action: 'site.update', entityType: 'site', entityId: id,
