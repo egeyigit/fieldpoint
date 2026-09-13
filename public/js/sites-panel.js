@@ -122,13 +122,21 @@ export function createSitesPanel({ mapView, currentUser }) {
     try {
       const { stats } = await api.siteStats();
       const totals = { active: 0, planned: 0, inactive: 0 };
-      for (const row of stats) totals[row.status] = (totals[row.status] ?? 0) + row.count;
+      let all = 0;
+      for (const row of stats) {
+        totals[row.status] = (totals[row.status] ?? 0) + row.count;
+        all += row.count;
+      }
       const strip = $('#site-stats');
+      const totalChip = document.createElement('span');
+      totalChip.className = 'stat-chip';
+      totalChip.textContent = `Total ${all}`;
       strip.replaceChildren(
+        totalChip,
         ...Object.entries(totals).map(([status, count]) => {
           const chip = document.createElement('button');
           chip.type = 'button';
-          chip.className = `stat-chip ${status}`;
+          chip.className = `stat-chip ${status}${$('#filter-status').value === status ? ' selected' : ''}`;
           chip.textContent = `${STATUSES[status]} ${count}`;
           chip.addEventListener('click', () => {
             $('#filter-status').value = $('#filter-status').value === status ? '' : status;
