@@ -37,6 +37,39 @@ describe('work order checklist', () => {
     assert.equal(undone.body.item.doneBy, null);
   });
 
+  it('edits item text without disturbing its done-state', async () => {
+    const { body } = await ctx.agent.post(`/api/work-orders/${orderId}/checklist`).send({ text: 'Isolate' });
+    await ctx.agent.patch(`/api/work-orders/${orderId}/checklist/${body.item.id}`).send({ isDone: true });
+    const renamed = await ctx.agent
+      .patch(`/api/work-orders/${orderId}/checklist/${body.item.id}`)
+      .send({ text: 'Isolate the supply' });
+    assert.equal(renamed.status, 200);
+    assert.equal(renamed.body.item.text, 'Isolate the supply');
+    assert.equal(renamed.body.item.isDone, true);
+    assert.equal(renamed.body.item.doneByName, 'Ada Admin');
+    assert.ok(renamed.body.item.doneAt);
+  });
+
+  it('reorders items and keeps positions dense and unique', async () => {
+    const ids = [];
+    for (const text of ['Isolate', 'Drain', 'Refill']) {
+      ids.push((await ctx.agent.post(`/api/work-orders/${orderId}/checklist`).send({ text })).body.item.id);
+    }
+    const moved = await ctx.agent
+      .patch(`/api/work-orders/${orderId}/checklist/${ids[2]}`)
+      .send({ position: 0 });
+    assert.equal(moved.status, 200);
+    const listed = await ctx.agent.get(`/api/work-orders/${orderId}/checklist`);
+    assert.deepEqual(listed.body.checklist.map((item) => item.text), ['Refill', 'Isolate', 'Drain']);
+    assert.deepEqual(listed.body.checklist.map((item) => item.position), [0, 1, 2]);
+  });
+
+  it('rejects a PATCH with nothing to update', async () => {
+    const { body } = await ctx.agent.post(`/api/work-orders/${orderId}/checklist`).send({ text: 'Isolate' });
+    const response = await ctx.agent.patch(`/api/work-orders/${orderId}/checklist/${body.item.id}`).send({});
+    assert.equal(response.status, 400);
+  });
+
   it('refuses an item that belongs to another work order', async () => {
     const siteId = (await ctx.agent.get('/api/sites')).body.sites[0].id;
     const other = (await ctx.agent.post('/api/work-orders').send({ siteId, title: 'Other' })).body.workOrder.id;

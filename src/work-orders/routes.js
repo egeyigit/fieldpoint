@@ -178,7 +178,11 @@ export function createWorkOrderRouter({ db, workOrders, sites, users, templates,
         if (!existing || existing.workOrderId !== order.id) {
           throw new HttpError(404, 'Checklist item not found');
         }
-        const item = checklist.setDone(existing.id, req.validated.body.isDone, req.user.id);
+        const { isDone, text, position } = req.validated.body;
+        let item = existing;
+        if (text !== undefined) item = checklist.updateText(existing.id, text);
+        if (position !== undefined) item = checklist.reorder(order.id, existing.id, position);
+        if (isDone !== undefined) item = checklist.setDone(existing.id, isDone, req.user.id);
         return res.json({ ok: true, item, progress: checklist.progressFor(order.id) });
       } catch (error) {
         return next(error);

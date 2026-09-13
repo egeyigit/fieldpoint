@@ -123,8 +123,17 @@ export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = ()
     $('#wo-checklist-progress').textContent = progress.total
       ? `${progress.done}/${progress.total} done`
       : 'No checklist items';
-    for (const item of items) {
+    items.forEach((item, index) => {
       const row = document.createElement('li');
+      row.className = 'checklist-row';
+      row.draggable = true;
+      row.dataset.itemId = String(item.id);
+
+      const handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.setAttribute('aria-hidden', 'true');
+      handle.textContent = '⠿';
+
       const label = document.createElement('label');
       label.className = 'check';
       const box = document.createElement('input');
@@ -135,7 +144,50 @@ export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = ()
       text.textContent = item.text;
       if (item.isDone) text.className = 'muted done';
       label.append(box, text);
-      row.append(label);
+
+      const controls = document.createElement('span');
+      controls.className = 'checklist-controls';
+
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'link-btn';
+      edit.textContent = 'Edit';
+      edit.setAttribute('aria-label', `Rename "${item.text}"`);
+      edit.addEventListener('click', () => editItem(item));
+
+      const up = document.createElement('button');
+      up.type = 'button';
+      up.className = 'link-btn';
+      up.textContent = '↑';
+      up.setAttribute('aria-label', `Move "${item.text}" up`);
+      up.disabled = index === 0;
+      up.addEventListener('click', () => moveItem(item, index - 1));
+
+      const down = document.createElement('button');
+      down.type = 'button';
+      down.className = 'link-btn';
+      down.textContent = '↓';
+      down.setAttribute('aria-label', `Move "${item.text}" down`);
+      down.disabled = index === items.length - 1;
+      down.addEventListener('click', () => moveItem(item, index + 1));
+
+      controls.append(edit, up, down);
+
+      row.addEventListener('dragstart', (event) => {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(item.id));
+      });
+      row.addEventListener('dragover', (event) => event.preventDefault());
+      row.addEventListener('drop', (event) => {
+        event.preventDefault();
+        const draggedId = Number(event.dataTransfer.getData('text/plain'));
+        if (draggedId && draggedId !== item.id) {
+          const dragged = items.find((candidate) => candidate.id === draggedId);
+          if (dragged) moveItem(dragged, index);
+        }
+      });
+
+      row.append(handle, label, controls);
       if (item.isDone && item.doneByName) {
         const who = document.createElement('span');
         who.className = 'muted mono';
@@ -143,6 +195,29 @@ export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = ()
         row.append(who);
       }
       checklistBox.append(row);
+    });
+  }
+
+  async function editItem(item) {
+    const text = window.prompt('Checklist item text', item.text);
+    if (text === null) return;
+    const trimmed = text.trim();
+    if (!trimmed || trimmed === item.text || !openOrderId) return;
+    try {
+      await api.updateChecklistItem(openOrderId, item.id, { text: trimmed });
+      await loadDetail(openOrderId);
+    } catch (error) {
+      errorBox.textContent = error.message;
+    }
+  }
+
+  async function moveItem(item, position) {
+    if (!openOrderId || position < 0) return;
+    try {
+      await api.updateChecklistItem(openOrderId, item.id, { position });
+      await loadDetail(openOrderId);
+    } catch (error) {
+      errorBox.textContent = error.message;
     }
   }
 

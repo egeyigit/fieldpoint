@@ -26,6 +26,11 @@ export function createChecklistRepository(db) {
     `UPDATE work_order_checklist_items
      SET is_done = ?, done_by = ?, done_at = ? WHERE id = ?`,
   );
+  const setText = db.prepare(`UPDATE work_order_checklist_items SET text = ? WHERE id = ?`);
+  const setPosition = db.prepare(`UPDATE work_order_checklist_items SET position = ? WHERE id = ?`);
+  const orderedIds = db.prepare(
+    `SELECT id FROM work_order_checklist_items WHERE work_order_id = ? ORDER BY position, id`,
+  );
   const remove = db.prepare(`DELETE FROM work_order_checklist_items WHERE id = ?`);
   const progress = db.prepare(
     `SELECT COUNT(*) AS total, COALESCE(SUM(is_done), 0) AS done
@@ -49,6 +54,30 @@ export function createChecklistRepository(db) {
     },
     setDone(id, isDone, userId) {
       setDone.run(isDone ? 1 : 0, isDone ? userId : null, isDone ? new Date().toISOString() : null, id);
+      return hydrate(byId.get(id));
+    },
+    /** Renames an item without disturbing its done-state. */
+    updateText(id, text) {
+      setText.run(text, id);
+      return hydrate(byId.get(id));
+    },
+    /**
+     * Moves an item to `position`, then renumbers the whole checklist densely
+     * from zero inside one transaction so no two items ever share a slot even
+     * under concurrent edits.
+     */
+    reorder(workOrderId, id, position) {
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const ids = orderedIds.all(workOrderId).map((row) => row.id).filter((rowId) => rowId !== id);
+        const target = Math.max(0, Math.min(position, ids.length));
+        ids.splice(target, 0, id);
+        ids.forEach((rowId, index) => setPosition.run(index, rowId));
+        db.exec('COMMIT');
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
       return hydrate(byId.get(id));
     },
     remove: (id) => remove.run(id).changes > 0,

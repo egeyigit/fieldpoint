@@ -48,6 +48,7 @@ export const api = {
   addWorkOrderComment: (id, body) => request('POST', `/api/work-orders/${id}/comments`, { body }),
   addChecklistItem: (id, text) => request('POST', `/api/work-orders/${id}/checklist`, { text }),
   setChecklistItem: (id, itemId, isDone) => request('PATCH', `/api/work-orders/${id}/checklist/${itemId}`, { isDone }),
+  updateChecklistItem: (id, itemId, changes) => request('PATCH', `/api/work-orders/${id}/checklist/${itemId}`, changes),
   removeChecklistItem: (id, itemId) => request('DELETE', `/api/work-orders/${id}/checklist/${itemId}`),
   startTimer: (id) => request('POST', `/api/work-orders/${id}/time/start`),
   stopTimer: (id, note = '') => request('POST', `/api/work-orders/${id}/time/stop`, { note }),

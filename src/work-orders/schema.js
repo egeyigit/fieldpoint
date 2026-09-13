@@ -35,7 +35,13 @@ export const createChecklistItemSchema = z.object({
   text: z.string().trim().min(1).max(200),
 });
 
-export const setChecklistItemSchema = z.object({ isDone: z.boolean() });
+export const setChecklistItemSchema = z
+  .object({
+    isDone: z.boolean().optional(),
+    text: z.string().trim().min(1).max(200).optional(),
+    position: z.coerce.number().int().min(0).optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, 'Nothing to update');
 
 export const checklistItemIdSchema = z.object({
   id: z.coerce.number().int().positive(),
