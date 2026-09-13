@@ -163,7 +163,12 @@ src/
 public/             static SPA (vanilla ES modules + Leaflet)
 scripts/            seed, lint
 test/               integration + unit tests
-```
+
+
+See [`docs/data-model.md`](docs/data-model.md) for the full table-by-table data
+model, the reasons behind its deliberate referential choices (checklist items
+are copied not referenced, template deletion nulls rather than cascades, soft
+delete is scoped to sites), and what the model does not guarantee.```
 
 ## Limitations / next steps
 
