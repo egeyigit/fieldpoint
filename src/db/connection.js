@@ -1,13 +1,39 @@
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
+import { accessSync, constants, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { userInfo } from 'node:os';
 import { LATEST_VERSION, MIGRATIONS } from './migrations/index.js';
 
 const META_SQL = `CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`;
 
-function ensureDirectory(dbPath) {
+/**
+ * Creates the database directory and proves this process can write to it.
+ * SQLite's own failure is a bare "unable to open database file"; naming the
+ * directory and the uid turns a crash loop into a one-line diagnosis.
+ */
+export function ensureWritableDirectory(dbPath) {
   if (dbPath === ':memory:') return;
-  mkdirSync(dirname(dbPath), { recursive: true });
+  const directory = dirname(dbPath);
+  mkdirSync(directory, { recursive: true });
+  try {
+    accessSync(directory, constants.W_OK);
+  } catch (error) {
+    const uid = safeUid();
+    throw new Error(
+      `Database directory ${directory} is not writable by uid ${uid}. ` +
+        'Mount it writable for this user, point DB_PATH at a directory that is, ' +
+        'or run the container as a user that owns it.',
+      { cause: error },
+    );
+  }
+}
+
+function safeUid() {
+  try {
+    return userInfo().uid;
+  } catch {
+    return 'unknown';
+  }
 }
 
 function readVersion(db) {
@@ -54,7 +80,7 @@ export function runMigrations(db, { log = () => {} } = {}) {
  * Callers own closing it via `db.close()`.
  */
 export function openDatabase(dbPath, options = {}) {
-  ensureDirectory(dbPath);
+  ensureWritableDirectory(dbPath);
   const db = new DatabaseSync(dbPath);
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');

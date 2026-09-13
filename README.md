@@ -123,6 +123,12 @@ docker build -t fieldpoint .
 docker run -p 4100:4100 -v fieldpoint-data:/data -e SESSION_SECRET=$(openssl rand -hex 32) fieldpoint
 ```
 
+The image runs as root by design: preview platforms mount `/data` as a plain root-owned tmpfs under a
+read-only root with every capability dropped, where an unprivileged user gets `EACCES` and nothing can
+`chown`. In that envelope root holds no capabilities either. To run unprivileged, own the data volume
+with your uid and pass `--user`, e.g. `docker run --user 1000:1000 -v /srv/fieldpoint:/data …`.
+If the directory is not writable the app exits with a one-line message naming the path and uid.
+
 ## Project layout
 
 ```

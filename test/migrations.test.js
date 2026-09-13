@@ -2,10 +2,39 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { LATEST_VERSION, MIGRATIONS } from '../src/db/migrations/index.js';
-import { openDatabase, runMigrations } from '../src/db/connection.js';
+import { ensureWritableDirectory, openDatabase, runMigrations } from '../src/db/connection.js';
+import { chmodSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir, userInfo } from 'node:os';
+import { join } from 'node:path';
 
 const tableNames = (db) =>
   db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`).all().map((row) => row.name);
+
+describe('database directory preflight', () => {
+  it('names the directory and uid when the database directory is not writable', { skip: userInfo().uid === 0 && 'root can write anywhere' }, () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fieldpoint-ro-'));
+    chmodSync(dir, 0o500);
+    try {
+      assert.throws(
+        () => ensureWritableDirectory(join(dir, 'x.db')),
+        (error) => error.message.includes(dir) && error.message.includes(`uid ${userInfo().uid}`),
+      );
+    } finally {
+      chmodSync(dir, 0o700);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('is a no-op for in-memory databases and creates missing directories', () => {
+    ensureWritableDirectory(':memory:');
+    const dir = mkdtempSync(join(tmpdir(), 'fieldpoint-mk-'));
+    try {
+      ensureWritableDirectory(join(dir, 'nested', 'deeper', 'x.db'));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe('migrations', () => {
   it('are numbered from 1 with no gaps or duplicates', () => {
