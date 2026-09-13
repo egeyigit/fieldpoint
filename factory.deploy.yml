@@ -16,8 +16,12 @@ services:
       # Demo accounts + sample sites are created on first boot (idempotent).
       SEED_DEMO: "true"
     # SQLite database + WAL files live here; the rest of the image is read-only.
+    # Owned by uid 1000 (the image's `node` user) so the non-root process can
+    # open the database when the path is mounted as a fresh tmpfs.
     writable_paths:
-      - /data
+      - path: /data
+        uid: 1000
+        gid: 1000
 
 routes:
   root: web
