@@ -77,6 +77,11 @@ All routes return `{ ok: boolean, ... }`. Errors: `{ ok: false, error, details? 
 | POST | `/api/auth/password` | user | Change own password |
 | GET | `/api/sites` | user | List; `q`, `category`, `status`, `assignedTo`, `sort`, viewport (`north`/`south`/`east`/`west`), proximity (`nearLat`/`nearLng`/`radiusKm`), `includeDeleted` (admin), `limit`, `offset` |
 | GET | `/api/sites/stats` | user | Counts by category × status |
+| GET | `/api/site-categories` | user | List categories (admins also see archived) |
+| POST | `/api/site-categories` | admin | Create a category |
+| PATCH | `/api/site-categories/:id` | admin | Update a category's label / colour |
+| DELETE | `/api/site-categories/:id` | admin | Archive a category (hidden from picker, kept on existing sites) |
+| POST | `/api/site-categories/:id/restore` | admin | Restore an archived category |
 | GET | `/api/sites/export.csv` | user | CSV export (same filters) |
 | GET/POST | `/api/sites`, `/api/sites/:id` | user | Read / create |
 | PATCH | `/api/sites/:id` | user | Partial update (`PUT` is kept as an alias) |
@@ -93,7 +98,7 @@ All routes return `{ ok: boolean, ... }`. Errors: `{ ok: false, error, details? 
 | PATCH | `/api/users/:id` | admin | Change `role` / `isActive` |
 | GET | `/api/users/audit` | admin | Recent audit entries |
 
-Site categories: `office`, `warehouse`, `client`, `job_site`, `vehicle`, `other`. Site statuses: `active`, `planned`, `inactive`.
+Site categories are configurable: the six built-ins (`office`, `warehouse`, `client`, `job_site`, `vehicle`, `other`) are seeded on migration and admins manage the rest through `/api/site-categories`. Archiving hides a category from the picker but keeps it valid on existing sites; assigning an unknown or archived slug to a new/changed site is rejected with 400. Site statuses: `active`, `planned`, `inactive`.
 Work-order statuses: `open`, `in_progress`, `blocked`, `done`, `cancelled`. Priorities: `low`, `normal`, `high`, `urgent`. Due dates are calendar days (`YYYY-MM-DD`), so no timezone can shift them.
 
 ## Development
