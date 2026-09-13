@@ -83,7 +83,8 @@ All routes return `{ ok: boolean, ... }`. Errors: `{ ok: false, error, details? 
 | GET | `/api/sites/stats` | user | Counts by category × status |
 | GET | `/api/sites/export.csv` | user | CSV export (same filters) |
 | GET/POST | `/api/sites`, `/api/sites/:id` | user | Read / create |
-| PATCH | `/api/sites/:id` | user | Partial update (`PUT` is kept as an alias) |
+| PATCH | `/api/sites/:id` | user | Partial update — only the fields sent are changed |
+| PUT | `/api/sites/:id` | user | Full replacement — body must include every site field |
 | DELETE | `/api/sites/:id` | admin | Soft delete |
 | POST | `/api/sites/:id/restore` | admin | Restore a soft-deleted site |
 | GET | `/api/work-orders` | user | List; `siteId`, `status`, `priority`, `assignedTo`, `openOnly`, `overdue`, `q`, `sort` |

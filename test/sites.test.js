@@ -25,7 +25,7 @@ describe('sites', () => {
     const fetched = await ctx.agent.get(`/api/sites/${id}`);
     assert.equal(fetched.body.site.name, 'HQ');
 
-    const updated = await ctx.agent.put(`/api/sites/${id}`).send({ status: 'inactive', notes: 'closed' });
+    const updated = await ctx.agent.patch(`/api/sites/${id}`).send({ status: 'inactive', notes: 'closed' });
     assert.equal(updated.body.site.status, 'inactive');
     assert.equal(updated.body.site.notes, 'closed');
     assert.equal(updated.body.site.name, 'HQ');
@@ -33,6 +33,43 @@ describe('sites', () => {
     const deleted = await ctx.agent.delete(`/api/sites/${id}`);
     assert.equal(deleted.status, 204);
     assert.equal((await ctx.agent.get(`/api/sites/${id}`)).status, 404);
+  });
+
+  it('PATCH changes only the fields sent', async () => {
+    const created = await ctx.agent.post('/api/sites').send(SITE);
+    const id = created.body.site.id;
+    const response = await ctx.agent.patch(`/api/sites/${id}`).send({ status: 'inactive' });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.site.status, 'inactive');
+    assert.equal(response.body.site.name, SITE.name);
+    assert.equal(response.body.site.address, SITE.address);
+    assert.equal(response.body.site.lat, SITE.lat);
+    assert.equal(response.body.site.lng, SITE.lng);
+    assert.equal(response.body.site.category, SITE.category);
+  });
+
+  it('PUT is a full replacement and rejects an incomplete body', async () => {
+    const created = await ctx.agent.post('/api/sites').send(SITE);
+    const id = created.body.site.id;
+
+    const partial = await ctx.agent.put(`/api/sites/${id}`).send({ status: 'inactive' });
+    assert.equal(partial.status, 400);
+    const missing = partial.body.details.map((issue) => issue.path);
+    assert.ok(missing.includes('name'));
+    assert.ok(missing.includes('lat'));
+    assert.ok(missing.includes('lng'));
+    assert.ok(missing.includes('category'));
+
+    const full = await ctx.agent.put(`/api/sites/${id}`).send({
+      ...SITE,
+      name: 'HQ Renamed',
+      status: 'inactive',
+      notes: 'closed',
+    });
+    assert.equal(full.status, 200);
+    assert.equal(full.body.site.name, 'HQ Renamed');
+    assert.equal(full.body.site.status, 'inactive');
+    assert.equal(full.body.site.notes, 'closed');
   });
 
   it('validates coordinates and enums', async () => {
@@ -44,7 +81,7 @@ describe('sites', () => {
 
   it('rejects empty updates', async () => {
     const { body } = await ctx.agent.post('/api/sites').send(SITE);
-    const response = await ctx.agent.put(`/api/sites/${body.site.id}`).send({});
+    const response = await ctx.agent.patch(`/api/sites/${body.site.id}`).send({});
     assert.equal(response.status, 400);
   });
 
@@ -76,7 +113,7 @@ describe('sites', () => {
     const created = await member.post('/api/sites').send(SITE);
     assert.equal(created.status, 201);
     const id = created.body.site.id;
-    assert.equal((await member.put(`/api/sites/${id}`).send({ name: 'Renamed' })).status, 200);
+    assert.equal((await member.patch(`/api/sites/${id}`).send({ name: 'Renamed' })).status, 200);
     assert.equal((await member.delete(`/api/sites/${id}`)).status, 403);
     assert.equal((await ctx.agent.delete(`/api/sites/${id}`)).status, 204);
   });

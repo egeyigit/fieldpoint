@@ -106,9 +106,11 @@ export function createSiteRouter({ db, sites, users }) {
     }
   };
 
+  // PATCH is the partial update; only the keys the caller sends are touched.
   router.patch('/:id', validate(siteIdSchema, 'params'), validate(updateSiteSchema), applyUpdate);
-  // Kept as an alias: this API has always applied partial updates on PUT.
-  router.put('/:id', validate(siteIdSchema, 'params'), validate(updateSiteSchema), applyUpdate);
+  // PUT is a full replacement: the body must satisfy createSiteSchema, so
+  // omitting a field is a 400 rather than a silent partial write.
+  router.put('/:id', validate(siteIdSchema, 'params'), validate(createSiteSchema), applyUpdate);
 
   router.delete('/:id', requireRole('admin'), validate(siteIdSchema, 'params'), (req, res, next) => {
     const { id } = req.validated.params;
