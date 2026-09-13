@@ -54,7 +54,9 @@ export const api = {
   listTemplates: (params = {}) => request('GET', `/api/templates?${new URLSearchParams(params)}`),
   createTemplate: (data) => request('POST', '/api/templates', data),
   updateTemplate: (id, data) => request('PATCH', `/api/templates/${id}`, data),
-  deleteTemplate: (id) => request('DELETE', `/api/templates/${id}`),
+  previewTemplate: (id) => request('GET', `/api/templates/${id}/preview`),
+  deleteTemplate: (id, { confirm = false } = {}) =>
+    request('DELETE', `/api/templates/${id}${confirm ? '?confirm=true' : ''}`),
   listSchedules: (params = {}) => request('GET', `/api/maintenance?${new URLSearchParams(params)}`),
   createSchedule: (data) => request('POST', '/api/maintenance', data),
   updateSchedule: (id, data) => request('PATCH', `/api/maintenance/${id}`, data),

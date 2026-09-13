@@ -105,10 +105,43 @@ describe('work order templates', () => {
     const siteId = (await ctx.agent.post('/api/sites').send(SITE)).body.site.id;
     const { body } = await ctx.agent.post('/api/templates').send(TEMPLATE);
     const order = await ctx.agent.post('/api/work-orders').send({ siteId, title: 'Q3', templateId: body.template.id });
-    await ctx.agent.delete(`/api/templates/${body.template.id}`);
+    await ctx.agent.delete(`/api/templates/${body.template.id}?confirm=true`);
     const detail = await ctx.agent.get(`/api/work-orders/${order.body.workOrder.id}`);
     assert.equal(detail.status, 200);
     assert.equal(detail.body.workOrder.templateId, null);
     assert.equal(detail.body.checklist.length, 3);
+  });
+
+  it('reports usage counts across the work order lifecycle', async () => {
+    const siteId = (await ctx.agent.post('/api/sites').send(SITE)).body.site.id;
+    const { body } = await ctx.agent.post('/api/templates').send(TEMPLATE);
+    const id = body.template.id;
+    assert.deepEqual((await ctx.agent.get(`/api/templates/${id}`)).body.template.usage, { schedules: 0, workOrders: 0 });
+    await ctx.agent.post('/api/work-orders').send({ siteId, title: 'Q3', templateId: id });
+    assert.deepEqual((await ctx.agent.get(`/api/templates/${id}`)).body.template.usage, { schedules: 0, workOrders: 1 });
+  });
+
+  it('previews the generated work order without writing any rows', async () => {
+    const { body } = await ctx.agent.post('/api/templates').send(TEMPLATE);
+    const id = body.template.id;
+    const preview = await ctx.agent.get(`/api/templates/${id}/preview`);
+    assert.equal(preview.status, 200);
+    assert.equal(preview.body.preview.title, TEMPLATE.title);
+    assert.equal(preview.body.preview.priority, 'high');
+    assert.deepEqual(preview.body.preview.checklist, TEMPLATE.items);
+    assert.deepEqual((await ctx.agent.get(`/api/templates/${id}`)).body.template.usage, { schedules: 0, workOrders: 0 });
+    assert.equal((await ctx.agent.get('/api/work-orders')).body.workOrders.length, 0);
+  });
+
+  it('refuses to delete a template in use without confirmation', async () => {
+    const siteId = (await ctx.agent.post('/api/sites').send(SITE)).body.site.id;
+    const { body } = await ctx.agent.post('/api/templates').send(TEMPLATE);
+    const id = body.template.id;
+    await ctx.agent.post('/api/work-orders').send({ siteId, title: 'Q3', templateId: id });
+    const blocked = await ctx.agent.delete(`/api/templates/${id}`);
+    assert.equal(blocked.status, 409);
+    assert.deepEqual(blocked.body.details.usage, { schedules: 0, workOrders: 1 });
+    assert.equal((await ctx.agent.get(`/api/templates/${id}`)).status, 200);
+    assert.equal((await ctx.agent.delete(`/api/templates/${id}?confirm=true`)).status, 204);
   });
 });

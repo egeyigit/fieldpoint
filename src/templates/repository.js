@@ -25,6 +25,12 @@ export function createTemplateRepository(db) {
     `SELECT id, text, position FROM work_order_template_items WHERE template_id = ? ORDER BY position, id`,
   );
   const remove = db.prepare(`DELETE FROM work_order_templates WHERE id = ?`);
+  const countSchedules = db.prepare(
+    `SELECT COUNT(*) AS n FROM maintenance_schedules WHERE template_id = ?`,
+  );
+  const countWorkOrders = db.prepare(
+    `SELECT COUNT(*) AS n FROM work_orders WHERE template_id = ?`,
+  );
 
   /** Replaces the checklist wholesale; positions are the array order. */
   function writeItems(templateId, items) {
@@ -32,8 +38,21 @@ export function createTemplateRepository(db) {
     items.forEach((text, index) => insertItem.run(templateId, index, text));
   }
 
+  function usageFor(id) {
+    return {
+      schedules: countSchedules.get(id).n,
+      workOrders: countWorkOrders.get(id).n,
+    };
+  }
+
   function hydrate(row) {
-    return row ? { ...row, isArchived: Boolean(row.isArchived), items: selectItems.all(row.id) } : null;
+    if (!row) return null;
+    return {
+      ...row,
+      isArchived: Boolean(row.isArchived),
+      items: selectItems.all(row.id),
+      usage: usageFor(row.id),
+    };
   }
 
   return {
@@ -73,6 +92,7 @@ export function createTemplateRepository(db) {
       return hydrate(byId.get(id));
     },
     remove: (id) => remove.run(id).changes > 0,
+    usageFor,
     itemsFor: (id) => selectItems.all(id),
   };
 }

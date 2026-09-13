@@ -25,6 +25,23 @@ export function createTemplateRouter({ db, templates }) {
     return res.json({ ok: true, template });
   });
 
+  // Preview shows exactly what a generated work order would contain, writing
+  // nothing: an admin can inspect a template before a schedule sweep uses it.
+  router.get('/:id/preview', validate(templateIdSchema, 'params'), (req, res, next) => {
+    const template = templates.findById(req.validated.params.id);
+    if (!template) return next(new HttpError(404, 'Template not found'));
+    return res.json({
+      ok: true,
+      preview: {
+        title: template.title,
+        description: template.description,
+        priority: template.priority,
+        estimatedMinutes: template.estimatedMinutes,
+        checklist: template.items.map((item) => item.text),
+      },
+    });
+  });
+
   // Writing them is an admin job: a template is shared state.
   router.post('/', requireRole('admin'), validate(createTemplateSchema), (req, res, next) => {
     try {
@@ -72,10 +89,18 @@ export function createTemplateRouter({ db, templates }) {
     const { id } = req.validated.params;
     const existing = templates.findById(id);
     if (!existing) return next(new HttpError(404, 'Template not found'));
+    // Deletion detaches the template from every referencing schedule and
+    // work order (ON DELETE SET NULL). When it is in use, require an explicit
+    // confirm flag and hand back the counts so the caller can name them.
+    const usage = existing.usage;
+    const inUse = usage.schedules > 0 || usage.workOrders > 0;
+    if (inUse && req.query.confirm !== 'true') {
+      throw new HttpError(409, 'Template is in use', { usage });
+    }
     templates.remove(id);
     recordAudit(db, {
       userId: req.user.id, action: 'template.delete', entityType: 'template', entityId: id,
-      details: { name: existing.name },
+      details: { name: existing.name, usage },
     });
     return res.status(204).end();
   });

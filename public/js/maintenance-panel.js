@@ -81,7 +81,11 @@ export function createMaintenancePanel({ currentUser, getSites }) {
       sub.className = 'sub';
       const minutes = template.estimatedMinutes ? ` · ~${template.estimatedMinutes} min` : '';
       sub.textContent = `${template.items.length} checklist item${template.items.length === 1 ? '' : 's'}${minutes}`;
-      item.append(title, sub);
+      const usage = template.usage ?? { schedules: 0, workOrders: 0 };
+      const meta = document.createElement('div');
+      meta.className = 'sub meta';
+      meta.textContent = `${usage.schedules} schedule${usage.schedules === 1 ? '' : 's'}, ${usage.workOrders} work order${usage.workOrders === 1 ? '' : 's'}`;
+      item.append(title, sub, meta);
       if (isAdmin) item.append(removeButton(`Delete ${template.name}`, () => removeTemplate(template)));
       templateList.append(item);
     }
@@ -123,9 +127,14 @@ export function createMaintenancePanel({ currentUser, getSites }) {
   }
 
   async function removeTemplate(template) {
-    if (!window.confirm(`Delete the template “${template.name}”?`)) return;
+    const usage = template.usage ?? { schedules: 0, workOrders: 0 };
+    const inUse = usage.schedules > 0 || usage.workOrders > 0;
+    const prompt = inUse
+      ? `Delete the template “${template.name}”? It is used by ${usage.schedules} schedule${usage.schedules === 1 ? '' : 's'} and ${usage.workOrders} work order${usage.workOrders === 1 ? '' : 's'}, which will be detached from it.`
+      : `Delete the template “${template.name}”?`;
+    if (!window.confirm(prompt)) return;
     try {
-      await api.deleteTemplate(template.id);
+      await api.deleteTemplate(template.id, { confirm: inUse });
       toast('Template deleted');
       await refresh();
     } catch (error) {
