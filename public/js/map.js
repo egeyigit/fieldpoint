@@ -28,7 +28,14 @@ export function createMapView(element, { onSelect, onAddAt }) {
   const layer = L.layerGroup().addTo(map);
   const markers = new Map();
 
-  map.on('contextmenu', (event) => onAddAt(event.latlng.lat, event.latlng.lng));
+  // The container must be focusable so a dialog opened from the map can return
+  // focus here on close; the native <dialog> focus-return does not cover this
+  // path because the opener is a map event, not a focused control.
+  if (element.tabIndex < 0) element.tabIndex = -1;
+  map.on('contextmenu', (event) => {
+    element.focus();
+    onAddAt(event.latlng.lat, event.latlng.lng);
+  });
 
   // Leaflet only tracks window resizes. The container is laid out by CSS grid and
   // can change size (or be 0×0 on first paint) without a window resize, so
