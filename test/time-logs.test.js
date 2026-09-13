@@ -46,6 +46,28 @@ describe('work order time logs', () => {
     const elsewhere = await ctx.agent.post(`/api/work-orders/${other}/time/start`);
     assert.equal(elsewhere.status, 409);
     assert.match(elsewhere.body.error, /already clocked in/);
+    assert.equal(elsewhere.body.details.blockingWorkOrderId, orderId);
+    assert.equal(elsewhere.body.details.blockingWorkOrderTitle, 'Service the pump');
+  });
+
+  it('switches: closes the running entry and opens a new one', async () => {
+    const first = await ctx.agent.post(`/api/work-orders/${orderId}/time/start`);
+    assert.equal(first.status, 201);
+
+    const siteId = (await ctx.agent.get('/api/sites')).body.sites[0].id;
+    const other = (await ctx.agent.post('/api/work-orders').send({ siteId, title: 'Other' })).body.workOrder.id;
+    const switched = await ctx.agent.post(`/api/work-orders/${other}/time/switch`);
+    assert.equal(switched.status, 201);
+    assert.equal(switched.body.timeLog.workOrderId, other);
+    assert.equal(switched.body.timeLog.endedAt, null);
+    assert.ok(switched.body.stopped.endedAt);
+    assert.equal(switched.body.stopped.workOrderId, orderId);
+
+    // The old order's entry is now closed; the new order's is running.
+    const oldLogs = (await ctx.agent.get(`/api/work-orders/${orderId}/time`)).body.timeLogs;
+    assert.ok(oldLogs.every((log) => log.endedAt !== null));
+    const newLogs = (await ctx.agent.get(`/api/work-orders/${other}/time`)).body.timeLogs;
+    assert.equal(newLogs.filter((log) => log.endedAt === null).length, 1);
   });
 
   it('two people can run their own timers at once', async () => {

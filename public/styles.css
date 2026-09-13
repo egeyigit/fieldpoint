@@ -148,4 +148,5 @@ dialog h3 { margin: 0 0 4px; }
 .panel-form { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; margin-top: 8px; }
 .panel-form h4 { margin: 0; font-size: 13px; }
 #wo-timer.active { border-color: var(--amber); color: var(--amber); }
+.timer-indicator { border-color: var(--amber); color: var(--amber); font-size: 12px; padding: 4px 10px; }
 #wo-comment-section h4 { margin: 12px 0 4px; }

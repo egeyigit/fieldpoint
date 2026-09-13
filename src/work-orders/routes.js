@@ -221,9 +221,11 @@ export function createWorkOrderRouter({ db, workOrders, sites, users, templates,
       const order = loadOrder(req.validated.params.id);
       const open = timeLogs.openForUser(req.user.id);
       if (open) {
-        throw new HttpError(409, 'You are already clocked in to another work order', [
-          { path: 'workOrderId', message: String(open.workOrderId) },
-        ]);
+        const blocker = workOrders.findById(open.workOrderId);
+        throw new HttpError(409, 'You are already clocked in to another work order', {
+          blockingWorkOrderId: open.workOrderId,
+          blockingWorkOrderTitle: blocker?.title ?? null,
+        });
       }
       const log = timeLogs.start(order.id, req.user.id);
       recordAudit(db, {
@@ -231,6 +233,37 @@ export function createWorkOrderRouter({ db, workOrders, sites, users, templates,
         details: { timeLogId: log.id },
       });
       return res.status(201).json({ ok: true, timeLog: log });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  /**
+   * Stops whatever timer the caller has running and clocks them in here in one
+   * step. Both the close and the open are audited so neither is silent, and it
+   * only ever acts on the caller's own running entry.
+   */
+  router.post('/:id/time/switch', validate(workOrderIdSchema, 'params'), (req, res, next) => {
+    try {
+      const order = loadOrder(req.validated.params.id);
+      const open = timeLogs.openForUser(req.user.id);
+      let stopped = null;
+      if (open && open.workOrderId !== order.id) {
+        stopped = timeLogs.stop(open.id);
+        recordAudit(db, {
+          userId: req.user.id, action: 'work_order.time_switch_stop', entityType: 'work_order',
+          entityId: open.workOrderId, details: { timeLogId: stopped.id, minutes: stopped.minutes },
+        });
+      } else if (open) {
+        // Already clocked in here: nothing to switch.
+        return res.status(201).json({ ok: true, timeLog: open });
+      }
+      const log = timeLogs.start(order.id, req.user.id);
+      recordAudit(db, {
+        userId: req.user.id, action: 'work_order.time_switch_start', entityType: 'work_order', entityId: order.id,
+        details: { timeLogId: log.id, previousWorkOrderId: stopped ? open.workOrderId : null },
+      });
+      return res.status(201).json({ ok: true, timeLog: log, stopped });
     } catch (error) {
       return next(error);
     }

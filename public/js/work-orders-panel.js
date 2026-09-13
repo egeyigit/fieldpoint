@@ -9,6 +9,7 @@ const DONE_STATUSES = new Set(['done', 'cancelled']);
  * fetched again so the two panels always agree on what exists.
  */
 export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = () => [], onFocusSite }) {
+  const panel = { onTimerChange: () => {} };
   const list = $('#wo-list');
   const dialog = $('#wo-dialog');
   const form = $('#wo-form');
@@ -308,6 +309,36 @@ export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = ()
     }
   });
 
+  function showConflict(details) {
+    errorBox.replaceChildren();
+    const text = document.createElement('span');
+    text.textContent = 'A timer is already running on ';
+    const link = document.createElement('button');
+    link.type = 'button';
+    link.className = 'link-btn';
+    link.textContent = details.blockingWorkOrderTitle ?? `work order #${details.blockingWorkOrderId}`;
+    link.addEventListener('click', async () => {
+      const { workOrder } = await api.getWorkOrder(details.blockingWorkOrderId);
+      await openEditor(workOrder);
+    });
+    const switchBtn = document.createElement('button');
+    switchBtn.type = 'button';
+    switchBtn.className = 'ghost small';
+    switchBtn.textContent = 'Switch timer here';
+    switchBtn.addEventListener('click', async () => {
+      try {
+        await api.switchTimer(openOrderId);
+        toast('Timer switched');
+        errorBox.replaceChildren();
+        await loadDetail(openOrderId);
+        panel.onTimerChange();
+      } catch (error) {
+        errorBox.textContent = error.message;
+      }
+    });
+    errorBox.append(text, link, document.createTextNode('. '), switchBtn);
+  }
+
   $('#wo-timer').addEventListener('click', async () => {
     if (!openOrderId) return;
     errorBox.textContent = '';
@@ -320,8 +351,13 @@ export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = ()
         toast('Timer running');
       }
       await loadDetail(openOrderId);
+      panel.onTimerChange();
     } catch (error) {
-      errorBox.textContent = error.message;
+      if (error.status === 409 && error.details?.blockingWorkOrderId) {
+        showConflict(error.details);
+      } else {
+        errorBox.textContent = error.message;
+      }
     }
   });
 
@@ -331,5 +367,13 @@ export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = ()
     $(id).addEventListener('change', refresh);
   }
 
-  return { refresh, openEditor };
+  Object.assign(panel, { refresh, openEditor });
+  Object.defineProperty(panel, 'onTimerChange', {
+    get: () => onTimerChange,
+    set: (fn) => {
+      onTimerChange = fn;
+    },
+  });
+  let onTimerChange = () => {};
+  return panel;
 }

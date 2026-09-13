@@ -50,6 +50,7 @@ export const api = {
   setChecklistItem: (id, itemId, isDone) => request('PATCH', `/api/work-orders/${id}/checklist/${itemId}`, { isDone }),
   removeChecklistItem: (id, itemId) => request('DELETE', `/api/work-orders/${id}/checklist/${itemId}`),
   startTimer: (id) => request('POST', `/api/work-orders/${id}/time/start`),
+  switchTimer: (id) => request('POST', `/api/work-orders/${id}/time/switch`),
   stopTimer: (id, note = '') => request('POST', `/api/work-orders/${id}/time/stop`, { note }),
   listTemplates: (params = {}) => request('GET', `/api/templates?${new URLSearchParams(params)}`),
   createTemplate: (data) => request('POST', '/api/templates', data),

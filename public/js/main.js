@@ -46,6 +46,38 @@ async function showApp(user) {
   });
   const adminPanel = user.role === 'admin' ? createAdminPanel({ currentUser: user }) : null;
 
+  // A persistent indicator so a running timer is never invisible. It refreshes
+  // whenever the work-orders panel changes a timer, and on a slow interval to
+  // catch a timer left running in another session.
+  const runningTimerBtn = $('#running-timer');
+  let runningWorkOrderId = null;
+  async function refreshRunningTimer() {
+    try {
+      const { workOrders } = await api.listWorkOrders({ assignedTo: user.id, limit: 500 });
+      let running = null;
+      for (const order of workOrders) {
+        const detail = await api.getWorkOrder(order.id);
+        const open = detail.timeLogs.find((log) => log.endedAt === null && log.userId === user.id);
+        if (open) {
+          running = { order, open };
+          break;
+        }
+      }
+      runningWorkOrderId = running ? running.order.id : null;
+      runningTimerBtn.hidden = !running;
+      if (running) runningTimerBtn.textContent = `\u23F1 ${running.order.title}`;
+    } catch {
+      runningTimerBtn.hidden = true;
+    }
+  }
+  runningTimerBtn.addEventListener('click', async () => {
+    if (!runningWorkOrderId) return;
+    showTab('work-orders');
+    await workOrdersPanel.refresh();
+    const { workOrder } = await api.getWorkOrder(runningWorkOrderId);
+    workOrdersPanel.openEditor(workOrder);
+  });
+
   function showTab(name) {
     for (const tab of document.querySelectorAll('.tab')) {
       tab.classList.toggle('active', tab.dataset.tab === name);
@@ -80,6 +112,9 @@ async function showApp(user) {
   await sitesPanel.refresh({ fit: true });
   // Templates feed the work-order dialog's picker, so load them up front.
   await maintenancePanel.refresh();
+  await refreshRunningTimer();
+  workOrdersPanel.onTimerChange = refreshRunningTimer;
+  setInterval(refreshRunningTimer, 60000);
 }
 
 async function boot() {
