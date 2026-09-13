@@ -1,0 +1,35 @@
+# Boots FieldPoint under the same container envelope the Atlantic Software
+# Factory applies to a preview: read-only root, every capability dropped,
+# no-new-privileges, an init process, a pid limit, and tmpfs for /tmp and the
+# database directory. Use it to reproduce a preview boot locally or in CI:
+#
+#   docker compose -f compose.preview.yml up --build
+#
+# Nothing here is a secret: SESSION_SECRET is generated at boot and persisted
+# on the /data tmpfs for the life of the container.
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4100:4100"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "4100"
+      DB_PATH: /data/fieldpoint.db
+      SEED_DEMO: "true"
+    cpus: 2
+    mem_limit: 4g
+    pids_limit: 512
+    init: true
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    read_only: true
+    restart: unless-stopped
+    tmpfs:
+      - /tmp
+      - /data

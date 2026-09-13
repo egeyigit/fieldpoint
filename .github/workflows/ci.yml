@@ -23,20 +23,36 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t fieldpoint:ci .
-      # Mimic a Factory preview: read-only root, tmpfs /data, no injected config.
-      - name: Boot container read-only and smoke test
+      # Boot exactly the way an Atlantic Factory preview does (compose.preview.yml
+      # mirrors its envelope: read-only root, cap_drop ALL, no-new-privileges,
+      # init, pid limit, plain tmpfs for /tmp and /data with no uid override).
+      - name: Boot under the Factory preview envelope
+        run: docker compose -f compose.preview.yml up -d --build
+      - name: Wait for health
         run: |
           set -euo pipefail
-          docker run -d --name fp -p 4100:4100 --read-only --tmpfs /data:uid=1000,gid=1000 fieldpoint:ci
-          for i in $(seq 1 30); do curl -sf localhost:4100/api/health && break; sleep 1; done
-          curl -sf localhost:4100/api/health
+          for i in $(seq 1 45); do
+            if curl -sf localhost:4100/api/health; then echo; exit 0; fi
+            sleep 2
+          done
+          echo "health never passed"; exit 1
+      - name: Assert the container never restarted
+        run: |
+          set -euo pipefail
+          id=$(docker compose -f compose.preview.yml ps -q web)
+          restarts=$(docker inspect -f '{{.RestartCount}}' "$id")
+          echo "RestartCount=$restarts"
+          test "$restarts" = "0"
+      - name: Smoke test login and the qa_seed hook
+        run: |
+          set -euo pipefail
           curl -sf -X POST localhost:4100/api/auth/login -H 'Content-Type: application/json' \
             -d '{"email":"admin@fieldpoint.local","password":"admin-demo-pass"}' | grep -q '"role":"admin"'
-          docker exec -e FIELDPOINT_USER_EMAIL=factoryqa@example.com -e FIELDPOINT_USER_PASSWORD=factory-qa-pass-1 \
-            fp node scripts/create-user.js
+          docker compose -f compose.preview.yml exec -T \
+            -e FIELDPOINT_USER_EMAIL=factoryqa@example.com -e FIELDPOINT_USER_PASSWORD=factory-qa-pass-1 \
+            web node scripts/create-user.js
           curl -sf -X POST localhost:4100/api/auth/login -H 'Content-Type: application/json' \
             -d '{"email":"factoryqa@example.com","password":"factory-qa-pass-1"}' | grep -q '"role":"admin"'
       - name: Container logs
         if: always()
-        run: docker logs fp || true
+        run: docker compose -f compose.preview.yml logs --no-color web || true

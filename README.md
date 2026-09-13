@@ -107,6 +107,11 @@ npm run lint            # syntax check + forbidden-statement scan
 
 ## Atlantic Software Factory
 
+`compose.preview.yml` boots the app under the Factory's exact preview envelope (read-only root,
+every capability dropped, no-new-privileges, tmpfs `/tmp` and `/data`). CI runs it on every push and
+asserts the container never restarts. Reproduce a preview boot locally with
+`docker compose -f compose.preview.yml up --build`.
+
 `factory.deploy.yml` declares the preview: one service built from the `Dockerfile`, port 4100,
 `/data` writable for SQLite, health on `/api/health`, and a `qa_seed` hook that creates the
 Factory's QA administrator via `scripts/create-user.js`. No external services, no required secrets.
