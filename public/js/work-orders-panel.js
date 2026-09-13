@@ -159,7 +159,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = ()
     }
   }
 
-  function renderTimer(timeLogs, totalMinutes) {
+  function renderTimer(timeLogs, totalMinutes, estimateDeltaMinutes) {
     openTimeLog = timeLogs.find((log) => log.endedAt === null && log.userId === currentUser.id) ?? null;
     $('#wo-timer').textContent = openTimeLog ? 'Stop timer' : 'Start timer';
     $('#wo-timer').classList.toggle('active', Boolean(openTimeLog));
@@ -168,6 +168,22 @@ export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = ()
     $('#wo-time-total').textContent = totalMinutes
       ? `${hours ? `${hours}h ` : ''}${minutes}m logged`
       : 'No time logged';
+    // Nothing to show when there is no estimate: a zero delta would mislead.
+    const estimate = $('#wo-estimate-delta');
+    if (estimate) {
+      if (estimateDeltaMinutes == null) {
+        estimate.textContent = '';
+        estimate.hidden = true;
+      } else {
+        estimate.hidden = false;
+        if (estimateDeltaMinutes === 0) {
+          estimate.textContent = 'on estimate';
+        } else {
+          const over = estimateDeltaMinutes > 0;
+          estimate.textContent = `${Math.abs(estimateDeltaMinutes)}m ${over ? 'over' : 'under'} estimate`;
+        }
+      }
+    }
   }
 
   async function openEditor(order = null, preset = {}) {
@@ -201,7 +217,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = ()
         total: detail.checklist.length,
         done: detail.checklist.filter((item) => item.isDone).length,
       });
-      renderTimer(detail.timeLogs, detail.totalMinutes);
+      renderTimer(detail.timeLogs, detail.totalMinutes, detail.estimateDeltaMinutes);
     } catch (error) {
       errorBox.textContent = error.message;
     }

@@ -56,6 +56,12 @@ export function createWorkOrderRouter({ db, workOrders, sites, users, templates,
         checklist: checklist.listFor(order.id),
         timeLogs: timeLogs.listFor(order.id),
         totalMinutes: timeLogs.totalMinutes(order.id),
+        // Delta against the estimate, or null when no estimate is set — a zero
+        // would read as "exactly on time" rather than "no baseline to compare".
+        estimateDeltaMinutes:
+          order.estimatedMinutes == null
+            ? null
+            : timeLogs.totalMinutes(order.id) - order.estimatedMinutes,
       });
     } catch (error) {
       return next(error);

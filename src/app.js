@@ -20,6 +20,8 @@ import { createTemplateRepository } from './templates/repository.js';
 import { createTemplateRouter } from './templates/routes.js';
 import { createScheduleRepository } from './maintenance/repository.js';
 import { createMaintenanceRouter } from './maintenance/routes.js';
+import { createReportRepository } from './reports/repository.js';
+import { createReportRouter } from './reports/routes.js';
 import { requestLogger } from './middleware/logging.js';
 import { originCheck } from './middleware/security.js';
 import { errorHandler, notFoundHandler } from './middleware/errors.js';
@@ -46,8 +48,9 @@ export function createApp(config) {
   const timeLogs = createTimeLogRepository(db);
   const templates = createTemplateRepository(db);
   const schedules = createScheduleRepository(db);
+  const reports = createReportRepository(db);
   const deps = {
-    db, sessions, users, sites, workOrders, checklist, timeLogs, templates, schedules, config,
+    db, sessions, users, sites, workOrders, checklist, timeLogs, templates, schedules, reports, config,
   };
 
   const app = express();
@@ -110,6 +113,7 @@ export function createApp(config) {
   app.use('/api/work-orders', createWorkOrderRouter(deps));
   app.use('/api/templates', createTemplateRouter(deps));
   app.use('/api/maintenance', createMaintenanceRouter(deps));
+  app.use('/api/reports', createReportRouter(deps));
   app.use('/api', notFoundHandler);
 
   app.use('/vendor/leaflet', express.static(join(LEAFLET_DIR, 'dist'), { immutable: true, maxAge: '7d' }));
