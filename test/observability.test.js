@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { requestLogger } from '../src/middleware/logging.js';
+import { errorHandler } from '../src/middleware/errors.js';
 import { ADMIN, bootApp, registerAdmin } from './helpers.js';
 
 /** Drives the middleware with the smallest req/res pair it actually touches. */
@@ -73,6 +74,21 @@ describe('request logging', () => {
     const lines = [];
     runLogger(requestLogger({ enabled: false, write: (line) => lines.push(line) }));
     assert.equal(lines.length, 0);
+  });
+
+  it('returns the request id set by the logger in the 500 body', () => {
+    const middleware = requestLogger({ enabled: false });
+    const headers = {};
+    const req = { method: 'GET', originalUrl: '/x', headers: {}, user: null };
+    middleware(req, { setHeader(name, value) { headers[name] = value; }, on() {} }, () => {});
+    assert.equal(req.requestId, headers['x-request-id']);
+
+    const body = {};
+    errorHandler(new Error('boom'), req, {
+      status() { return this; },
+      json(payload) { Object.assign(body, payload); return this; },
+    }, () => {});
+    assert.equal(body.requestId, req.requestId, 'the 500 body must carry the request id it was logged under');
   });
 });
 

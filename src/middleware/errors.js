@@ -22,6 +22,6 @@ export function errorHandler(err, req, res, _next) {
   if (err?.type === 'entity.too.large') {
     return res.status(413).json({ ok: false, error: 'Request body too large' });
   }
-  console.error(`[error] ${req.method} ${req.path}`, err);
-  return res.status(500).json({ ok: false, error: 'Internal server error' });
+  console.error(`[error] ${req.requestId ?? '-'} ${req.method} ${req.path}`, err);
+  return res.status(500).json({ ok: false, error: 'Internal server error', requestId: req.requestId ?? null });
 }
