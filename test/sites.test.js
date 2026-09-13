@@ -106,6 +106,39 @@ describe('sites', () => {
     assert.deepEqual(response.body.stats, [{ category: 'office', status: 'active', count: 2 }]);
   });
 
+  it('reports open and overdue work-order counts and top open orders', async () => {
+    const { body } = await ctx.agent.post('/api/sites').send(SITE);
+    const siteId = body.site.id;
+    const past = '2000-01-01';
+
+    const overdue = await ctx.agent.post('/api/work-orders').send({
+      siteId, title: 'Fix leak', priority: 'urgent', dueDate: past,
+    });
+    await ctx.agent.post('/api/work-orders').send({ siteId, title: 'Inspect', priority: 'normal' });
+    const done = await ctx.agent.post('/api/work-orders').send({ siteId, title: 'Closed', status: 'done' });
+
+    let listed = (await ctx.agent.get('/api/sites')).body.sites[0];
+    assert.equal(listed.openWorkOrders, 2);
+    assert.equal(listed.overdueWorkOrders, 1);
+    assert.equal(listed.topOpenOrders.length, 2);
+    assert.equal(listed.topOpenOrders[0].title, 'Fix leak');
+
+    // hasOverdue filter keeps sites with overdue work and drops the rest.
+    assert.equal((await ctx.agent.get('/api/sites?hasOverdue=true')).body.total, 1);
+
+    // Completing the overdue order clears the overdue count.
+    await ctx.agent.put(`/api/work-orders/${overdue.body.workOrder.id}`).send({ status: 'done' });
+    listed = (await ctx.agent.get('/api/sites')).body.sites[0];
+    assert.equal(listed.openWorkOrders, 1);
+    assert.equal(listed.overdueWorkOrders, 0);
+    assert.equal((await ctx.agent.get('/api/sites?hasOverdue=true')).body.total, 0);
+
+    // Deleting the remaining open order drops the open count to zero.
+    await ctx.agent.delete(`/api/work-orders/${done.body.workOrder.id}`);
+    listed = (await ctx.agent.get('/api/sites')).body.sites[0];
+    assert.equal(listed.openWorkOrders, 1);
+  });
+
   it('writes audit entries for site mutations', async () => {
     const { body } = await ctx.agent.post('/api/sites').send(SITE);
     await ctx.agent.delete(`/api/sites/${body.site.id}`);

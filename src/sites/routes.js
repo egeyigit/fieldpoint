@@ -40,7 +40,8 @@ export function createSiteRouter({ db, sites, users }) {
       assertMayIncludeDeleted(req);
       const query = req.validated.query;
       const { rows, total } = sites.list(query);
-      return res.json({ ok: true, sites: rows, total, limit: query.limit, offset: query.offset });
+      const withOrders = rows.map((site) => ({ ...site, topOpenOrders: sites.topOpenOrders(site.id) }));
+      return res.json({ ok: true, sites: withOrders, total, limit: query.limit, offset: query.offset });
     } catch (error) {
       return next(error);
     }
@@ -73,7 +74,7 @@ export function createSiteRouter({ db, sites, users }) {
       ? sites.findById(req.validated.params.id)
       : sites.findVisibleById(req.validated.params.id);
     if (!site) return next(new HttpError(404, 'Site not found'));
-    return res.json({ ok: true, site });
+    return res.json({ ok: true, site: { ...site, topOpenOrders: sites.topOpenOrders(site.id) } });
   });
 
   router.post('/', validate(createSiteSchema), (req, res, next) => {

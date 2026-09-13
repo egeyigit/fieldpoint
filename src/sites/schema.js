@@ -44,6 +44,10 @@ export const listSitesSchema = z
     category: z.enum(SITE_CATEGORIES).optional(),
     status: z.enum(SITE_STATUSES).optional(),
     assignedTo: z.coerce.number().int().positive().optional(),
+    hasOverdue: z
+      .union([z.boolean(), z.enum(['true', 'false'])])
+      .transform((value) => value === true || value === 'true')
+      .default(false),
     // Map viewport filter. All four are required together.
     north: z.coerce.number().min(-90).max(90).optional(),
     south: z.coerce.number().min(-90).max(90).optional(),

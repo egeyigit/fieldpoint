@@ -32,6 +32,7 @@ export function createSitesPanel({ mapView, currentUser }) {
     if (category) params.category = category;
     if (status) params.status = status;
     if ($('#filter-mine').checked) params.assignedTo = currentUser.id;
+    if ($('#filter-overdue').checked) params.hasOverdue = 'true';
     if (currentUser.role === 'admin' && $('#show-deleted').checked) params.includeDeleted = 'true';
     if (nearMe) {
       params.nearLat = nearMe.lat;
@@ -293,6 +294,7 @@ export function createSitesPanel({ mapView, currentUser }) {
   $('#near-me').addEventListener('click', toggleNearMe);
   $('#site-sort').addEventListener('change', () => refresh());
   $('#filter-mine').addEventListener('change', () => refresh());
+  $('#filter-overdue').addEventListener('change', () => refresh());
   $('#show-deleted').addEventListener('change', () => refresh());
 
   return { refresh, select, openEditor, getSites: () => sites.filter((site) => !site.deletedAt) };

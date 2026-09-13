@@ -1,13 +1,28 @@
 import { boundingBox, haversineKm } from './geo.js';
 
+// Open work orders are the non-terminal statuses; overdue is a dated open order
+// whose due date is in the past. Both counts come from one grouped subquery so
+// listing 1,000 sites stays a single statement instead of an N+1 fan-out.
+const OPEN_STATUS_SQL = `('open', 'in_progress', 'blocked')`;
+const COUNTS_SUBQUERY = `LEFT JOIN (
+    SELECT w.site_id,
+      COUNT(*) AS openWorkOrders,
+      SUM(CASE WHEN w.due_date IS NOT NULL AND w.due_date < date('now') THEN 1 ELSE 0 END) AS overdueWorkOrders
+    FROM work_orders w
+    WHERE w.status IN ${OPEN_STATUS_SQL}
+    GROUP BY w.site_id
+  ) wc ON wc.site_id = s.id`;
 const COLUMNS = `s.id, s.name, s.address, s.lat, s.lng, s.category, s.status, s.notes,
   s.assigned_to AS assignedTo, s.created_by AS createdBy, s.updated_by AS updatedBy,
   s.deleted_at AS deletedAt, s.created_at AS createdAt, s.updated_at AS updatedAt,
-  cu.name AS createdByName, uu.name AS updatedByName, au.name AS assignedToName`;
+  cu.name AS createdByName, uu.name AS updatedByName, au.name AS assignedToName,
+  COALESCE(wc.openWorkOrders, 0) AS openWorkOrders,
+  COALESCE(wc.overdueWorkOrders, 0) AS overdueWorkOrders`;
 const FROM = `FROM sites s
   LEFT JOIN users cu ON cu.id = s.created_by
   LEFT JOIN users uu ON uu.id = s.updated_by
-  LEFT JOIN users au ON au.id = s.assigned_to`;
+  LEFT JOIN users au ON au.id = s.assigned_to
+  ${COUNTS_SUBQUERY}`;
 
 const UPDATABLE = ['name', 'address', 'lat', 'lng', 'category', 'status', 'notes', 'assignedTo'];
 const COLUMN_BY_FIELD = { assignedTo: 'assigned_to' };
@@ -38,6 +53,14 @@ export function createSiteRepository(db) {
     `SELECT category, status, COUNT(*) AS count FROM sites WHERE deleted_at IS NULL
      GROUP BY category, status ORDER BY category, status`,
   );
+  // Top open orders per site, urgent-and-soonest first, for the map popup.
+  const topOpenBySite = db.prepare(
+    `SELECT id, title, priority, due_date AS dueDate FROM work_orders
+     WHERE site_id = ? AND status IN ${OPEN_STATUS_SQL}
+     ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+              CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date ASC, id ASC
+     LIMIT 3`,
+  );
 
   function buildFilter(filters) {
     const clauses = [];
@@ -59,6 +82,9 @@ export function createSiteRepository(db) {
     if (filters.assignedTo !== undefined) {
       clauses.push('s.assigned_to = ?');
       params.push(filters.assignedTo);
+    }
+    if (filters.hasOverdue) {
+      clauses.push('COALESCE(wc.overdueWorkOrders, 0) > 0');
     }
     if (filters.north !== undefined) {
       clauses.push('s.lat BETWEEN ? AND ? AND s.lng BETWEEN ? AND ?');
@@ -99,6 +125,7 @@ export function createSiteRepository(db) {
 
   return {
     findById: (id) => byId.get(id) ?? null,
+    topOpenOrders: (siteId) => topOpenBySite.all(siteId),
     /** Visible (not soft-deleted) site, or null. */
     findVisibleById(id) {
       const site = byId.get(id);

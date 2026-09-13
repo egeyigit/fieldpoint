@@ -17,6 +17,7 @@ export const WORK_ORDER_STATUSES = {
   cancelled: 'Cancelled',
 };
 export const WORK_ORDER_PRIORITIES = { urgent: 'Urgent', high: 'High', normal: 'Normal', low: 'Low' };
+export const OPEN_WORK_ORDER_STATUSES = ['open', 'in_progress', 'blocked'];
 export const WORK_ORDER_SORTS = { due: 'Due date', priority: 'Priority', created: 'Newest', updated: 'Recently updated' };
 
 export const DEFAULT_VIEW = { center: [39.5, -98.35], zoom: 4 };

@@ -9,16 +9,36 @@ function escapeHtml(text) {
   return String(text ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
 
-function pinIcon(category, status) {
-  const color = CATEGORIES[category]?.color ?? CATEGORIES.other.color;
-  const opacity = status === 'inactive' ? 0.45 : 1;
+function pinIcon(site) {
+  const color = CATEGORIES[site.category]?.color ?? CATEGORIES.other.color;
+  const opacity = site.status === 'inactive' ? 0.45 : 1;
+  const open = Number(site.openWorkOrders) || 0;
+  const overdue = Number(site.overdueWorkOrders) || 0;
+  // A count badge with a red ring when anything is overdue. Legible over any
+  // marker colour because it carries its own dark background and light text.
+  const badge = open > 0
+    ? `<span class="pin-badge${overdue > 0 ? ' overdue' : ''}">${open > 99 ? '99+' : open}</span>`
+    : '';
   return L.divIcon({
     className: '',
-    html: `<div class="marker-pin" style="background:${color};opacity:${opacity}"></div>`,
+    html: `<div class="marker-pin" style="background:${color};opacity:${opacity}"></div>${badge}`,
     iconSize: [14, 14],
     iconAnchor: [7, 7],
     popupAnchor: [0, -8],
   });
+}
+
+/** The open/overdue summary and top orders shown inside a pin's popup. */
+function workOrdersPopup(site) {
+  const open = Number(site.openWorkOrders) || 0;
+  const overdue = Number(site.overdueWorkOrders) || 0;
+  if (open === 0) return '<br><small style="opacity:.7">No open work orders</small>';
+  const summary = overdue > 0 ? `${open} open · ${overdue} overdue` : `${open} open`;
+  const items = (site.topOpenOrders ?? [])
+    .map((order) => `<li>${escapeHtml(order.title)}</li>`)
+    .join('');
+  const list = items ? `<ul class="pin-orders">${items}</ul>` : '';
+  return `<br><small class="pin-orders-summary${overdue > 0 ? ' overdue' : ''}">${summary}</small>${list}`;
 }
 
 /** Wraps Leaflet so the rest of the UI never touches L directly. */
@@ -70,11 +90,12 @@ export function createMapView(element, { onSelect, onAddAt }) {
       layer.clearLayers();
       markers.clear();
       for (const site of sites) {
-        const marker = L.marker([site.lat, site.lng], { icon: pinIcon(site.category, site.status), title: site.name });
+        const marker = L.marker([site.lat, site.lng], { icon: pinIcon(site), title: site.name });
         const assignee = site.assignedToName ? ` · ${escapeHtml(site.assignedToName)}` : '';
         marker.bindPopup(
           `<b>${escapeHtml(site.name)}</b><br><span style="opacity:.7">${escapeHtml(site.address || '—')}</span>` +
-            `<br><small>${escapeHtml(CATEGORIES[site.category]?.label ?? site.category)} · ${escapeHtml(site.status)}${assignee}</small>`,
+            `<br><small>${escapeHtml(CATEGORIES[site.category]?.label ?? site.category)} · ${escapeHtml(site.status)}${assignee}</small>` +
+            workOrdersPopup(site),
         );
         marker.on('click', () => onSelect(site.id));
         marker.addTo(layer);
