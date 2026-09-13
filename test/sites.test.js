@@ -12,7 +12,7 @@ describe('sites', () => {
   afterEach(() => ctx.close());
 
   it('requires authentication', async () => {
-    const response = await request(ctx.app).get('/api/sites');
+    const response = await request(ctx.server).get('/api/sites');
     assert.equal(response.status, 401);
   });
 
@@ -72,7 +72,7 @@ describe('sites', () => {
   });
 
   it('members can create/update but only admins can delete', async () => {
-    const member = await createMember(ctx.agent, ctx.app);
+    const member = await createMember(ctx.agent, ctx.server);
     const created = await member.post('/api/sites').send(SITE);
     assert.equal(created.status, 201);
     const id = created.body.site.id;

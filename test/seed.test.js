@@ -26,7 +26,7 @@ describe('demo seed', () => {
     try {
       await seedDemo(ctx.db);
       for (const user of DEMO_USERS) {
-        const response = await request(ctx.app).post('/api/auth/login').send({ email: user.email, password: user.password });
+        const response = await request(ctx.server).post('/api/auth/login').send({ email: user.email, password: user.password });
         assert.equal(response.status, 200, `${user.email} should log in`);
         assert.equal(response.body.user.role, user.role);
       }
@@ -39,8 +39,8 @@ describe('demo seed', () => {
     const ctx = bootApp();
     try {
       await seedDemo(ctx.db);
-      await request(ctx.app).post('/api/auth/login').send({ email: DEMO_USERS[0].email, password: DEMO_USERS[0].password });
-      const agent = request.agent(ctx.app);
+      await request(ctx.server).post('/api/auth/login').send({ email: DEMO_USERS[0].email, password: DEMO_USERS[0].password });
+      const agent = request.agent(ctx.server);
       await agent.post('/api/auth/login').send({ email: DEMO_USERS[0].email, password: DEMO_USERS[0].password });
       const all = await agent.get('/api/work-orders');
       assert.equal(all.body.total, DEMO_WORK_ORDERS.length);
@@ -60,7 +60,7 @@ describe('demo seed', () => {
       const updated = await upsertAdmin(ctx.db, { email: 'qa@example.com', name: 'QA', password: 'second-password-2' });
       assert.equal(updated.created, false);
       assert.equal(updated.id, created.id);
-      const login = await request(ctx.app).post('/api/auth/login').send({ email: 'qa@example.com', password: 'second-password-2' });
+      const login = await request(ctx.server).post('/api/auth/login').send({ email: 'qa@example.com', password: 'second-password-2' });
       assert.equal(login.status, 200);
       assert.equal(login.body.user.role, 'admin');
     } finally {

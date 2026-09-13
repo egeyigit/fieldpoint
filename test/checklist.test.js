@@ -52,7 +52,7 @@ describe('work order checklist', () => {
 
   it('members can tick items', async () => {
     const { body } = await ctx.agent.post(`/api/work-orders/${orderId}/checklist`).send({ text: 'Isolate' });
-    const member = await createMember(ctx.agent, ctx.app);
+    const member = await createMember(ctx.agent, ctx.server);
     const response = await member.patch(`/api/work-orders/${orderId}/checklist/${body.item.id}`).send({ isDone: true });
     assert.equal(response.status, 200);
     assert.equal(response.body.item.doneByName, 'Max Member');

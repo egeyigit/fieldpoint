@@ -13,7 +13,7 @@ describe('user administration', () => {
   afterEach(() => ctx.close());
 
   it('lists users for admins only', async () => {
-    const member = await createMember(ctx.agent, ctx.app);
+    const member = await createMember(ctx.agent, ctx.server);
     assert.equal((await member.get('/api/users')).status, 403);
     const response = await ctx.agent.get('/api/users');
     assert.equal(response.status, 200);
@@ -22,7 +22,7 @@ describe('user administration', () => {
   });
 
   it('promotes a member and refuses to demote the last admin', async () => {
-    await createMember(ctx.agent, ctx.app);
+    await createMember(ctx.agent, ctx.server);
     const users = (await ctx.agent.get('/api/users')).body.users;
     const member = users.find((user) => user.email === MEMBER.email);
     const denied = await ctx.agent.patch(`/api/users/${admin.id}`).send({ role: 'member' });
@@ -34,16 +34,16 @@ describe('user administration', () => {
   });
 
   it('deactivating a user kills their sessions and blocks login', async () => {
-    const memberAgent = await createMember(ctx.agent, ctx.app);
+    const memberAgent = await createMember(ctx.agent, ctx.server);
     const memberId = (await ctx.agent.get('/api/users')).body.users.find((user) => user.email === MEMBER.email).id;
     await ctx.agent.patch(`/api/users/${memberId}`).send({ isActive: false });
     assert.equal((await memberAgent.get('/api/sites')).status, 401);
-    const login = await request(ctx.app).post('/api/auth/login').send({ email: MEMBER.email, password: MEMBER.password });
+    const login = await request(ctx.server).post('/api/auth/login').send({ email: MEMBER.email, password: MEMBER.password });
     assert.equal(login.status, 401);
   });
 
   it('directory is readable by members, lists only active users, and hides hashes', async () => {
-    const member = await createMember(ctx.agent, ctx.app);
+    const member = await createMember(ctx.agent, ctx.server);
     const response = await member.get('/api/users/directory');
     assert.equal(response.status, 200);
     assert.equal(response.body.users.length, 2);
@@ -56,7 +56,7 @@ describe('user administration', () => {
   });
 
   it('directory requires authentication', async () => {
-    assert.equal((await request(ctx.app).get('/api/users/directory')).status, 401);
+    assert.equal((await request(ctx.server).get('/api/users/directory')).status, 401);
   });
 
   it('rejects unknown users and empty patches', async () => {

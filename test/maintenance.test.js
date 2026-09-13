@@ -54,7 +54,7 @@ describe('maintenance schedules', () => {
   });
 
   it('only admins may write schedules', async () => {
-    const member = await createMember(ctx.agent, ctx.app);
+    const member = await createMember(ctx.agent, ctx.server);
     assert.equal((await member.get('/api/maintenance')).status, 200);
     assert.equal((await member.post('/api/maintenance').send(schedule())).status, 403);
     assert.equal((await member.post('/api/maintenance/run')).status, 403);

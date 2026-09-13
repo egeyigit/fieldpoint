@@ -24,7 +24,7 @@ describe('auth', () => {
 
   it('concurrent bootstrap registrations yield exactly one admin', async () => {
     const attempts = ['a', 'b', 'c', 'd'].map((suffix) =>
-      request(ctx.app).post('/api/auth/register').send({ ...ADMIN, email: `${suffix}@example.com` }),
+      request(ctx.server).post('/api/auth/register').send({ ...ADMIN, email: `${suffix}@example.com` }),
     );
     const responses = await Promise.all(attempts);
     const created = responses.filter((response) => response.status === 201);
@@ -35,21 +35,21 @@ describe('auth', () => {
 
   it('rejects anonymous registration after bootstrap', async () => {
     await registerAdmin(ctx.agent);
-    const response = await request(ctx.app).post('/api/auth/register').send(MEMBER);
+    const response = await request(ctx.server).post('/api/auth/register').send(MEMBER);
     assert.equal(response.status, 403);
   });
 
   it('member cannot create accounts, admin can', async () => {
     await registerAdmin(ctx.agent);
-    const member = await createMember(ctx.agent, ctx.app);
+    const member = await createMember(ctx.agent, ctx.server);
     const denied = await member.post('/api/auth/register').send({ ...MEMBER, email: 'x@example.com' });
     assert.equal(denied.status, 403);
   });
 
   it('login rejects wrong password and unknown email identically', async () => {
     await registerAdmin(ctx.agent);
-    const wrong = await request(ctx.app).post('/api/auth/login').send({ email: ADMIN.email, password: 'nope-nope-nope' });
-    const unknown = await request(ctx.app).post('/api/auth/login').send({ email: 'ghost@example.com', password: 'nope-nope-nope' });
+    const wrong = await request(ctx.server).post('/api/auth/login').send({ email: ADMIN.email, password: 'nope-nope-nope' });
+    const unknown = await request(ctx.server).post('/api/auth/login').send({ email: 'ghost@example.com', password: 'nope-nope-nope' });
     assert.equal(wrong.status, 401);
     assert.equal(unknown.status, 401);
     assert.equal(wrong.body.error, unknown.body.error);
@@ -66,13 +66,13 @@ describe('auth', () => {
     await registerAdmin(ctx.agent);
     const cookie = (await ctx.agent.get('/api/auth/me')).request.cookies;
     await ctx.agent.post('/api/auth/logout');
-    const replay = await request(ctx.app).get('/api/auth/me').set('Cookie', cookie);
+    const replay = await request(ctx.server).get('/api/auth/me').set('Cookie', cookie);
     assert.equal(replay.body.user, null);
   });
 
   it('rejects tampered session cookies', async () => {
     await registerAdmin(ctx.agent);
-    const response = await request(ctx.app).get('/api/auth/me').set('Cookie', 'fp_session=deadbeef.notasignature');
+    const response = await request(ctx.server).get('/api/auth/me').set('Cookie', 'fp_session=deadbeef.notasignature');
     assert.equal(response.body.user, null);
   });
 
@@ -82,7 +82,7 @@ describe('auth', () => {
     assert.equal(bad.status, 401);
     const good = await ctx.agent.post('/api/auth/password').send({ currentPassword: ADMIN.password, newPassword: 'new-password-123' });
     assert.equal(good.status, 200);
-    const login = await request(ctx.app).post('/api/auth/login').send({ email: ADMIN.email, password: 'new-password-123' });
+    const login = await request(ctx.server).post('/api/auth/login').send({ email: ADMIN.email, password: 'new-password-123' });
     assert.equal(login.status, 200);
   });
 

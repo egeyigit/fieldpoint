@@ -39,7 +39,7 @@ describe('site soft delete and restore', () => {
   });
 
   it('only admins may delete, restore or list the recycle bin', async () => {
-    const member = await createMember(ctx.agent, ctx.app);
+    const member = await createMember(ctx.agent, ctx.server);
     assert.equal((await member.delete(`/api/sites/${siteId}`)).status, 403);
     assert.equal((await member.get('/api/sites?includeDeleted=true')).status, 403);
     await ctx.agent.delete(`/api/sites/${siteId}`);
@@ -68,7 +68,7 @@ describe('site assignment', () => {
   beforeEach(async () => {
     ctx = bootApp();
     await registerAdmin(ctx.agent);
-    await createMember(ctx.agent, ctx.app);
+    await createMember(ctx.agent, ctx.server);
     memberId = (await ctx.agent.get('/api/users')).body.users.find((user) => user.email === MEMBER.email).id;
   });
   afterEach(() => ctx.close());

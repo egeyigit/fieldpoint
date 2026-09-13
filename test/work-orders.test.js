@@ -19,7 +19,7 @@ describe('work orders', () => {
 
   it('requires authentication', async () => {
     const { default: request } = await import('supertest');
-    assert.equal((await request(ctx.app).get('/api/work-orders')).status, 401);
+    assert.equal((await request(ctx.server).get('/api/work-orders')).status, 401);
   });
 
   it('creates with defaults and joins the site', async () => {
@@ -118,7 +118,7 @@ describe('work orders', () => {
   });
 
   it('only admins can delete an order', async () => {
-    const member = await createMember(ctx.agent, ctx.app);
+    const member = await createMember(ctx.agent, ctx.server);
     const { body } = await member.post('/api/work-orders').send(newOrder());
     assert.equal((await member.delete(`/api/work-orders/${body.workOrder.id}`)).status, 403);
     assert.equal((await ctx.agent.delete(`/api/work-orders/${body.workOrder.id}`)).status, 204);

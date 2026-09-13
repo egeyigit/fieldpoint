@@ -63,7 +63,7 @@ describe('work order templates', () => {
 
   it('members may read but not write', async () => {
     await ctx.agent.post('/api/templates').send(TEMPLATE);
-    const member = await createMember(ctx.agent, ctx.app);
+    const member = await createMember(ctx.agent, ctx.server);
     assert.equal((await member.get('/api/templates')).status, 200);
     assert.equal((await member.post('/api/templates').send({ ...TEMPLATE, name: 'Other' })).status, 403);
     assert.equal((await member.delete('/api/templates/1')).status, 403);

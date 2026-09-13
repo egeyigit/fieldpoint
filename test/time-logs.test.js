@@ -49,7 +49,7 @@ describe('work order time logs', () => {
   });
 
   it('two people can run their own timers at once', async () => {
-    const member = await createMember(ctx.agent, ctx.app);
+    const member = await createMember(ctx.agent, ctx.server);
     assert.equal((await ctx.agent.post(`/api/work-orders/${orderId}/time/start`)).status, 201);
     assert.equal((await member.post(`/api/work-orders/${orderId}/time/start`)).status, 201);
     const listed = await ctx.agent.get(`/api/work-orders/${orderId}/time`);
@@ -79,7 +79,7 @@ describe('work order time logs', () => {
   });
 
   it('a member may delete their own entry but not someone else s', async () => {
-    const member = await createMember(ctx.agent, ctx.app);
+    const member = await createMember(ctx.agent, ctx.server);
     const mine = await ctx.agent.post(`/api/work-orders/${orderId}/time`).send({
       startedAt: '2026-01-01T08:00:00Z', endedAt: '2026-01-01T09:00:00Z',
     });
