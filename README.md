@@ -11,6 +11,10 @@ Built to be boring and dependable: Node.js + Express 5, SQLite through the Node 
 - **Soft delete** — deleting a site hides it everywhere but keeps the row; admins see a recycle bin and can restore it.
 - **Work orders** — the field work itself: title, description, status (open / in progress / blocked / done / cancelled), priority, assignee, due date, and a comment thread. Overdue orders are flagged, `completedAt` is derived from status and never trusted from the client.
 - **Proximity search** — `nearLat` / `nearLng` / `radiusKm` with an index-friendly bounding box followed by an exact haversine check; results can be sorted by distance.
+- **Checklists** — a work order carries its own checklist, copied from a template at creation so a later template edit can never rewrite what a technician ticked off. Each tick records who and when.
+- **Time tracking** — clock in and out against a work order, or type an entry in after the fact. A database partial index enforces one running timer per person; totals ignore a timer that is still running.
+- **Templates** — reusable recipes (title, priority, estimate, ordered checklist) that a work order or a schedule can instantiate.
+- **Recurring maintenance** — a schedule generates a work order every N days. The sweep runs hourly and on boot, is idempotent, and catches a long-missed schedule up in one jump instead of generating a backlog.
 - **Geocoding** — "Locate" button resolves an address via OpenStreetMap Nominatim (browser-side, optional).
 - **Auth** — first registered user becomes admin; admins create further accounts. scrypt password hashing, server-side sessions with signed cookies, rate-limited login, password change with session rotation.
 - **Roles** — `admin` (everything) and `member` (view, create, edit sites). Last active admin cannot be demoted or disabled.
@@ -88,6 +92,17 @@ All routes return `{ ok: boolean, ... }`. Errors: `{ ok: false, error, details? 
 | PATCH | `/api/work-orders/:id` | user | Partial update |
 | DELETE | `/api/work-orders/:id` | admin | Delete (cascades comments) |
 | GET/POST | `/api/work-orders/:id/comments` | user | Read / add a comment |
+| GET/POST | `/api/work-orders/:id/checklist` | user | Read / add checklist items |
+| PATCH/DELETE | `/api/work-orders/:id/checklist/:itemId` | user | Tick / remove an item |
+| GET | `/api/work-orders/:id/time` | user | Time logs and total minutes |
+| POST | `/api/work-orders/:id/time/start`, `.../stop` | user | Clock in / out |
+| POST | `/api/work-orders/:id/time` | user | Manual entry (`startedAt`, `endedAt`, `note`) |
+| DELETE | `/api/work-orders/:id/time/:logId` | owner or admin | Remove an entry |
+| GET | `/api/templates`, `/api/templates/:id` | user | Read templates |
+| POST/PATCH/DELETE | `/api/templates`, `/api/templates/:id` | admin | Manage templates |
+| GET | `/api/maintenance` | user | Schedules; `siteId`, `dueOnly`, `includeInactive` |
+| POST/PATCH/DELETE | `/api/maintenance`, `/api/maintenance/:id` | admin | Manage schedules |
+| POST | `/api/maintenance/run` | admin | Generate everything due now |
 | GET | `/api/users/directory` | user | Active users (id, name, email, role) for assignment |
 | GET | `/api/users` | admin | List users |
 | PATCH | `/api/users/:id` | admin | Change `role` / `isActive` |
@@ -139,7 +154,9 @@ src/
   db/               connection, numbered migrations, demo seed
   auth/             password hashing, session store, middleware, routes
   sites/            zod schemas, repository, routes, csv, geo helpers
-  work-orders/      zod schemas, repository, routes
+  work-orders/      zod schemas, repository, routes, checklist, time logs
+  templates/        reusable work-order recipes
+  maintenance/      recurring schedules + the generator sweep
   users/            repository, directory + admin routes
   audit/            append-only audit log
   middleware/       errors, validation, origin check, request logging

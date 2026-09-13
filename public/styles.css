@@ -140,3 +140,12 @@ dialog h3 { margin: 0 0 4px; }
 .comments { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; max-height: 200px; overflow-y: auto; font-size: 13px; }
 .comments li { border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 #wo-comment-section h4 { margin: 12px 0 4px; }
+
+/* Checklist and panel forms */
+.checklist { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.checklist li { display: flex; align-items: center; gap: 6px; }
+.checklist .done { text-decoration: line-through; }
+.panel-form { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; margin-top: 8px; }
+.panel-form h4 { margin: 0; font-size: 13px; }
+#wo-timer.active { border-color: var(--amber); color: var(--amber); }
+#wo-comment-section h4 { margin: 12px 0 4px; }

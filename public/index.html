@@ -31,6 +31,7 @@
       <nav class="tabs" role="tablist">
         <button class="tab active" data-tab="sites" role="tab" aria-selected="true">Sites</button>
         <button class="tab" data-tab="work-orders" role="tab" aria-selected="false">Work orders</button>
+        <button class="tab" data-tab="maintenance" role="tab" aria-selected="false">Maintenance</button>
         <button class="tab" data-tab="admin" role="tab" aria-selected="false" id="admin-tab" hidden>Admin</button>
       </nav>
       <div class="user-box">
@@ -79,6 +80,40 @@
           <button id="wo-add" class="primary small" type="button">+ New work order</button>
         </div>
         <ul id="wo-list" class="site-list" aria-label="Work order list"></ul>
+      </div>
+
+      <div id="panel-maintenance" class="panel" hidden>
+        <div class="row between">
+          <span class="muted" id="schedule-count">0 schedules</span>
+          <button id="run-maintenance" class="ghost small" type="button" title="Generate work orders for anything due now">Run now</button>
+        </div>
+        <p class="error" id="maint-error" role="alert"></p>
+        <ul id="schedule-list" class="site-list" aria-label="Maintenance schedules"></ul>
+
+        <form id="schedule-form" class="panel-form">
+          <h4>New schedule</h4>
+          <label>Site<select id="schedule-site" required></select></label>
+          <label>Title<input name="title" required maxlength="140" /></label>
+          <div class="row gap">
+            <label>Every (days)<input name="intervalDays" type="number" min="1" value="30" required /></label>
+            <label>First due<input name="nextDueDate" type="date" required /></label>
+          </div>
+          <div class="row gap">
+            <label>Priority<select id="schedule-priority"></select></label>
+            <label>Template<select id="schedule-template"></select></label>
+          </div>
+          <button type="submit" class="primary small">Create schedule</button>
+        </form>
+
+        <h3>Templates</h3>
+        <ul id="template-list" class="site-list" aria-label="Work order templates"></ul>
+        <form id="template-form" class="panel-form">
+          <h4>New template</h4>
+          <label>Name<input name="name" required maxlength="80" /></label>
+          <label>Work order title<input name="title" required maxlength="140" /></label>
+          <label>Checklist (one per line)<textarea name="items" rows="4" placeholder="Check gauge pressure&#10;Check tamper seal"></textarea></label>
+          <button type="submit" class="primary small">Create template</button>
+        </form>
       </div>
 
       <div id="panel-admin" class="panel" hidden>
@@ -150,6 +185,7 @@
           <label>Assigned to<select id="wo-assigned"></select></label>
           <label>Due date<input name="dueDate" type="date" /></label>
         </div>
+        <label id="wo-template-row">Template<select id="wo-template"></select></label>
         <p class="muted mono" id="wo-meta"></p>
         <p class="error" id="wo-error" role="alert"></p>
         <div class="row between">
@@ -161,6 +197,22 @@
         </div>
       </form>
       <section id="wo-comment-section" hidden>
+        <div class="row between">
+          <h4>Checklist</h4>
+          <span class="muted mono" id="wo-checklist-progress"></span>
+        </div>
+        <ul id="wo-checklist" class="checklist"></ul>
+        <form id="wo-checklist-form" class="row gap">
+          <input name="text" placeholder="Add a checklist item" maxlength="200" aria-label="Add a checklist item" />
+          <button type="submit" class="ghost small">Add</button>
+        </form>
+
+        <div class="row between">
+          <h4>Time</h4>
+          <span class="muted mono" id="wo-time-total"></span>
+        </div>
+        <button type="button" id="wo-timer" class="ghost small">Start timer</button>
+
         <h4>Activity</h4>
         <ul id="wo-comments" class="comments"></ul>
         <form id="wo-comment-form" class="row gap">

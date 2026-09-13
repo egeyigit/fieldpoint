@@ -1,5 +1,6 @@
 const COLUMNS = `w.id, w.site_id AS siteId, w.title, w.description, w.status, w.priority,
   w.assigned_to AS assignedTo, w.due_date AS dueDate, w.completed_at AS completedAt,
+  w.template_id AS templateId, w.schedule_id AS scheduleId, w.estimated_minutes AS estimatedMinutes,
   w.created_by AS createdBy, w.updated_by AS updatedBy, w.created_at AS createdAt, w.updated_at AS updatedAt,
   s.name AS siteName, s.lat AS siteLat, s.lng AS siteLng,
   au.name AS assignedToName, cu.name AS createdByName`;
@@ -8,8 +9,12 @@ const FROM = `FROM work_orders w
   LEFT JOIN users au ON au.id = w.assigned_to
   LEFT JOIN users cu ON cu.id = w.created_by`;
 
-const UPDATABLE = ['title', 'description', 'status', 'priority', 'assignedTo', 'dueDate'];
-const COLUMN_BY_FIELD = { assignedTo: 'assigned_to', dueDate: 'due_date' };
+const UPDATABLE = ['title', 'description', 'status', 'priority', 'assignedTo', 'dueDate', 'estimatedMinutes'];
+const COLUMN_BY_FIELD = {
+  assignedTo: 'assigned_to',
+  dueDate: 'due_date',
+  estimatedMinutes: 'estimated_minutes',
+};
 const TERMINAL_STATUSES = new Set(['done', 'cancelled']);
 const OPEN_STATUSES = ['open', 'in_progress', 'blocked'];
 
@@ -27,8 +32,9 @@ const ORDER_BY_SORT = {
 export function createWorkOrderRepository(db) {
   const byId = db.prepare(`SELECT ${COLUMNS} ${FROM} WHERE w.id = ?`);
   const insert = db.prepare(
-    `INSERT INTO work_orders (site_id, title, description, status, priority, assigned_to, due_date, completed_at, created_by, updated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO work_orders (site_id, title, description, status, priority, assigned_to, due_date,
+       completed_at, template_id, schedule_id, estimated_minutes, created_by, updated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const remove = db.prepare(`DELETE FROM work_orders WHERE id = ?`);
   const insertComment = db.prepare(
@@ -100,7 +106,9 @@ export function createWorkOrderRepository(db) {
       const completedAt = TERMINAL_STATUSES.has(data.status) ? nowIso() : null;
       const result = insert.run(
         data.siteId, data.title, data.description, data.status, data.priority,
-        data.assignedTo ?? null, data.dueDate ?? null, completedAt, userId, userId,
+        data.assignedTo ?? null, data.dueDate ?? null, completedAt,
+        data.templateId ?? null, data.scheduleId ?? null, data.estimatedMinutes ?? null,
+        userId, userId,
       );
       return byId.get(result.lastInsertRowid);
     },

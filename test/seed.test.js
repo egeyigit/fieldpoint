@@ -14,7 +14,7 @@ describe('demo seed', () => {
       assert.equal(first.sites.length, DEMO_SITES.length);
       assert.equal(first.workOrders.length, DEMO_WORK_ORDERS.length);
       const second = await seedDemo(ctx.db);
-      assert.deepEqual(second, { users: [], sites: [], workOrders: [] });
+      assert.deepEqual(second, { users: [], sites: [], workOrders: [], templates: [], schedules: [] });
       assert.equal(createUserRepository(ctx.db).count(), DEMO_USERS.length);
     } finally {
       ctx.close();

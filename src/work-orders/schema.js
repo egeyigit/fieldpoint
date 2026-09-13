@@ -25,7 +25,43 @@ const fields = {
   priority: z.enum(WORK_ORDER_PRIORITIES),
   assignedTo: z.coerce.number().int().positive().nullable(),
   dueDate,
+  templateId: z.coerce.number().int().positive().nullable(),
+  estimatedMinutes: z.coerce.number().int().positive().max(60 * 24 * 30).nullable(),
 };
+
+const MAX_NOTE = 500;
+
+export const createChecklistItemSchema = z.object({
+  text: z.string().trim().min(1).max(200),
+});
+
+export const setChecklistItemSchema = z.object({ isDone: z.boolean() });
+
+export const checklistItemIdSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  itemId: z.coerce.number().int().positive(),
+});
+
+export const timeLogIdSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  logId: z.coerce.number().int().positive(),
+});
+
+export const stopTimerSchema = z.object({
+  note: z.string().trim().max(MAX_NOTE).default(''),
+});
+
+/** An entry typed in after the fact; the end must not precede the start. */
+export const manualTimeLogSchema = z
+  .object({
+    startedAt: z.string().datetime(),
+    endedAt: z.string().datetime(),
+    note: z.string().trim().max(MAX_NOTE).default(''),
+  })
+  .refine((body) => Date.parse(body.endedAt) >= Date.parse(body.startedAt), {
+    message: 'endedAt must not be before startedAt',
+    path: ['endedAt'],
+  });
 
 export const createWorkOrderSchema = z.object({
   ...fields,
@@ -34,11 +70,13 @@ export const createWorkOrderSchema = z.object({
   priority: fields.priority.default('normal'),
   assignedTo: fields.assignedTo.default(null),
   dueDate: fields.dueDate.default(null),
+  templateId: fields.templateId.default(null),
+  estimatedMinutes: fields.estimatedMinutes.default(null),
 });
 
 export const updateWorkOrderSchema = z
   .object({ ...fields })
-  .omit({ siteId: true })
+  .omit({ siteId: true, templateId: true })
   .partial()
   .refine((body) => Object.keys(body).length > 0, 'Nothing to update');
 

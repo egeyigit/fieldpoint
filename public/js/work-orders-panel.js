@@ -8,13 +8,15 @@ const DONE_STATUSES = new Set(['done', 'cancelled']);
  * Work-order list, editor and comment thread. Sites are passed in rather than
  * fetched again so the two panels always agree on what exists.
  */
-export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
+export function createWorkOrdersPanel({ currentUser, getSites, getTemplates = () => [], onFocusSite }) {
   const list = $('#wo-list');
   const dialog = $('#wo-dialog');
   const form = $('#wo-form');
   const errorBox = $('#wo-error');
   const commentList = $('#wo-comments');
   const commentForm = $('#wo-comment-form');
+  const checklistBox = $('#wo-checklist');
+  let openTimeLog = null;
   let orders = [];
   let directory = [];
   let openOrderId = null;
@@ -109,6 +111,63 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
     );
     setOptions($('#wo-status'), Object.entries(WORK_ORDER_STATUSES), { selected: order?.status ?? 'open' });
     setOptions($('#wo-priority'), Object.entries(WORK_ORDER_PRIORITIES), { selected: order?.priority ?? 'normal' });
+    // A template only applies at creation: an existing order owns its checklist.
+    $('#wo-template-row').hidden = Boolean(order);
+    if (!order) {
+      setOptions($('#wo-template'), getTemplates().map((row) => [row.id, row.name]), { placeholder: 'No template' });
+    }
+  }
+
+  function renderChecklist(items, progress) {
+    checklistBox.replaceChildren();
+    $('#wo-checklist-progress').textContent = progress.total
+      ? `${progress.done}/${progress.total} done`
+      : 'No checklist items';
+    for (const item of items) {
+      const row = document.createElement('li');
+      const label = document.createElement('label');
+      label.className = 'check';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = item.isDone;
+      box.addEventListener('change', () => toggleItem(item, box));
+      const text = document.createElement('span');
+      text.textContent = item.text;
+      if (item.isDone) text.className = 'muted done';
+      label.append(box, text);
+      row.append(label);
+      if (item.isDone && item.doneByName) {
+        const who = document.createElement('span');
+        who.className = 'muted mono';
+        who.textContent = ` ${item.doneByName} · ${relativeTime(item.doneAt)}`;
+        row.append(who);
+      }
+      checklistBox.append(row);
+    }
+  }
+
+  async function toggleItem(item, box) {
+    try {
+      const result = await api.setChecklistItem(openOrderId, item.id, box.checked);
+      renderChecklist(
+        (await api.getWorkOrder(openOrderId)).checklist,
+        result.progress,
+      );
+    } catch (error) {
+      box.checked = item.isDone;
+      errorBox.textContent = error.message;
+    }
+  }
+
+  function renderTimer(timeLogs, totalMinutes) {
+    openTimeLog = timeLogs.find((log) => log.endedAt === null && log.userId === currentUser.id) ?? null;
+    $('#wo-timer').textContent = openTimeLog ? 'Stop timer' : 'Start timer';
+    $('#wo-timer').classList.toggle('active', Boolean(openTimeLog));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    $('#wo-time-total').textContent = totalMinutes
+      ? `${hours ? `${hours}h ` : ''}${minutes}m logged`
+      : 'No time logged';
   }
 
   async function openEditor(order = null, preset = {}) {
@@ -128,13 +187,28 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
       : '';
     $('#wo-meta').title = order ? absoluteTime(order.createdAt) : '';
     commentList.replaceChildren();
+    checklistBox.replaceChildren();
     dialog.showModal();
-    if (order) await loadComments(order.id);
+    if (order) await loadDetail(order.id);
   }
 
-  async function loadComments(id) {
+  /** One request feeds the comments, the checklist and the timer. */
+  async function loadDetail(id) {
     try {
-      const { comments } = await api.getWorkOrder(id);
+      const detail = await api.getWorkOrder(id);
+      renderComments(detail.comments);
+      renderChecklist(detail.checklist, {
+        total: detail.checklist.length,
+        done: detail.checklist.filter((item) => item.isDone).length,
+      });
+      renderTimer(detail.timeLogs, detail.totalMinutes);
+    } catch (error) {
+      errorBox.textContent = error.message;
+    }
+  }
+
+  function renderComments(comments) {
+    {
       commentList.replaceChildren(
         ...comments.map((comment) => {
           const item = document.createElement('li');
@@ -150,8 +224,6 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
           return item;
         }),
       );
-    } catch (error) {
-      errorBox.textContent = error.message;
     }
   }
 
@@ -182,7 +254,11 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
         await api.updateWorkOrder(openOrderId, changes);
         toast('Work order updated');
       } else {
-        await api.createWorkOrder(payload);
+        const templateId = $('#wo-template').value;
+        await api.createWorkOrder({
+          ...payload,
+          templateId: templateId === '' ? null : Number(templateId),
+        });
         toast('Work order created');
       }
       dialog.close();
@@ -200,7 +276,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
     try {
       await api.addWorkOrderComment(openOrderId, body);
       input.value = '';
-      await loadComments(openOrderId);
+      await loadDetail(openOrderId);
     } catch (error) {
       errorBox.textContent = error.message;
     }
@@ -213,6 +289,37 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
       dialog.close();
       toast('Work order deleted');
       await refresh();
+    } catch (error) {
+      errorBox.textContent = error.message;
+    }
+  });
+
+  $('#wo-checklist-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const input = event.target.elements.text;
+    const text = input.value.trim();
+    if (!text || !openOrderId) return;
+    try {
+      await api.addChecklistItem(openOrderId, text);
+      input.value = '';
+      await loadDetail(openOrderId);
+    } catch (error) {
+      errorBox.textContent = error.message;
+    }
+  });
+
+  $('#wo-timer').addEventListener('click', async () => {
+    if (!openOrderId) return;
+    errorBox.textContent = '';
+    try {
+      if (openTimeLog) {
+        await api.stopTimer(openOrderId);
+        toast('Timer stopped');
+      } else {
+        await api.startTimer(openOrderId);
+        toast('Timer running');
+      }
+      await loadDetail(openOrderId);
     } catch (error) {
       errorBox.textContent = error.message;
     }

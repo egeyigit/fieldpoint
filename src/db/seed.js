@@ -1,6 +1,9 @@
 import { createUserRepository } from '../users/repository.js';
 import { createSiteRepository } from '../sites/repository.js';
 import { createWorkOrderRepository } from '../work-orders/repository.js';
+import { createChecklistRepository } from '../work-orders/checklist.js';
+import { createTemplateRepository } from '../templates/repository.js';
+import { createScheduleRepository, addDays, todayIso } from '../maintenance/repository.js';
 import { hashPassword } from '../auth/password.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -38,11 +41,38 @@ export const DEMO_WORK_ORDERS = Object.freeze([
   { site: 'Providence Client — Harbor Corp', title: 'Install replacement badge reader', priority: 'normal', status: 'done', dueInDays: -7, description: 'Signed off by J. Rivera.' },
 ]);
 
+export const DEMO_TEMPLATES = Object.freeze([
+  {
+    name: 'Fire extinguisher check',
+    title: 'Quarterly fire extinguisher check',
+    description: 'Every unit on the floor plan.',
+    priority: 'normal',
+    estimatedMinutes: 45,
+    items: ['Check gauge pressure', 'Check tamper seal', 'Check the access path is clear', 'Sign the tag'],
+  },
+  {
+    name: 'Generator service',
+    title: 'Monthly generator service',
+    description: '',
+    priority: 'high',
+    estimatedMinutes: 90,
+    items: ['Check oil level', 'Check coolant', 'Run under load for 10 minutes', 'Log the hour meter'],
+  },
+]);
+
+export const DEMO_SCHEDULES = Object.freeze([
+  { site: 'Boston HQ', template: 'Fire extinguisher check', title: 'Quarterly fire extinguisher check', intervalDays: 90, dueInDays: 7, priority: 'normal' },
+  { site: 'Newark Distribution Center', template: 'Generator service', title: 'Monthly generator service', intervalDays: 30, dueInDays: -2, priority: 'high' },
+]);
+
 export async function seedDemo(db, { log = () => {} } = {}) {
   const users = createUserRepository(db);
   const sites = createSiteRepository(db);
   const workOrders = createWorkOrderRepository(db);
-  const created = { users: [], sites: [], workOrders: [] };
+  const templates = createTemplateRepository(db);
+  const schedules = createScheduleRepository(db);
+  const checklist = createChecklistRepository(db);
+  const created = { users: [], sites: [], workOrders: [], templates: [], schedules: [] };
   let adminId = null;
 
   for (const user of DEMO_USERS) {
@@ -87,6 +117,42 @@ export async function seedDemo(db, { log = () => {} } = {}) {
     );
     created.workOrders.push(order.title);
     log(`created work order: ${order.title}`);
+  }
+
+  const templateIdByName = new Map(templates.list({ includeArchived: true }).map((row) => [row.name, row.id]));
+  for (const template of DEMO_TEMPLATES) {
+    if (templateIdByName.has(template.name)) continue;
+    const row = templates.create(template, adminId);
+    templateIdByName.set(row.name, row.id);
+    created.templates.push(row.name);
+    log(`created template: ${row.name}`);
+  }
+
+  const existingSchedules = new Set(schedules.list({ includeInactive: true }).map((row) => row.title));
+  for (const schedule of DEMO_SCHEDULES) {
+    const siteId = siteIdByName.get(schedule.site);
+    if (!siteId || existingSchedules.has(schedule.title)) continue;
+    schedules.create(
+      {
+        siteId,
+        templateId: templateIdByName.get(schedule.template) ?? null,
+        title: schedule.title,
+        description: '',
+        priority: schedule.priority,
+        assignedTo: operator?.id ?? null,
+        intervalDays: schedule.intervalDays,
+        nextDueDate: addDays(todayIso(), schedule.dueInDays),
+      },
+      adminId,
+    );
+    created.schedules.push(schedule.title);
+    log(`created schedule: ${schedule.title}`);
+  }
+
+  // Give the first demo work order a checklist so the dialog has something in it.
+  const firstOrder = workOrders.list({ limit: 1, offset: 0, sort: 'due' }).rows[0];
+  if (firstOrder && checklist.progressFor(firstOrder.id).total === 0) {
+    checklist.addMany(firstOrder.id, ['Isolate the door', 'Replace the motor', 'Test the safety edge']);
   }
   return created;
 }

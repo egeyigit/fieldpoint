@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { createMapView } from './map.js';
 import { createSitesPanel } from './sites-panel.js';
 import { createWorkOrdersPanel } from './work-orders-panel.js';
+import { createMaintenancePanel } from './maintenance-panel.js';
 import { createAdminPanel } from './admin.js';
 import { $, debounce, formValues, toast } from './ui.js';
 
@@ -30,9 +31,14 @@ async function showApp(user) {
     onAddAt: (lat, lng) => sitesPanel.openEditor(null, { lat: lat.toFixed(6), lng: lng.toFixed(6) }),
   });
   sitesPanel = createSitesPanel({ mapView, currentUser: user });
+  const maintenancePanel = createMaintenancePanel({
+    currentUser: user,
+    getSites: () => sitesPanel.getSites(),
+  });
   const workOrdersPanel = createWorkOrdersPanel({
     currentUser: user,
     getSites: () => sitesPanel.getSites(),
+    getTemplates: () => maintenancePanel.getTemplates(),
     onFocusSite: (siteId) => {
       showTab('sites');
       sitesPanel.select(siteId);
@@ -47,6 +53,7 @@ async function showApp(user) {
     }
     $('#panel-sites').hidden = name !== 'sites';
     $('#panel-work-orders').hidden = name !== 'work-orders';
+    $('#panel-maintenance').hidden = name !== 'maintenance';
     $('#panel-admin').hidden = name !== 'admin';
   }
 
@@ -59,6 +66,7 @@ async function showApp(user) {
     tab.addEventListener('click', async () => {
       showTab(tab.dataset.tab);
       if (tab.dataset.tab === 'work-orders') await workOrdersPanel.refresh();
+      if (tab.dataset.tab === 'maintenance') await maintenancePanel.refresh();
       if (tab.dataset.tab === 'admin' && adminPanel) await adminPanel.refresh();
     });
   }
@@ -70,6 +78,8 @@ async function showApp(user) {
 
   setTimeout(() => mapView.invalidate(), 0);
   await sitesPanel.refresh({ fit: true });
+  // Templates feed the work-order dialog's picker, so load them up front.
+  await maintenancePanel.refresh();
 }
 
 async function boot() {

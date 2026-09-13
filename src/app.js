@@ -14,6 +14,12 @@ import { createSiteRepository } from './sites/repository.js';
 import { createSiteRouter } from './sites/routes.js';
 import { createWorkOrderRepository } from './work-orders/repository.js';
 import { createWorkOrderRouter } from './work-orders/routes.js';
+import { createChecklistRepository } from './work-orders/checklist.js';
+import { createTimeLogRepository } from './work-orders/time-logs.js';
+import { createTemplateRepository } from './templates/repository.js';
+import { createTemplateRouter } from './templates/routes.js';
+import { createScheduleRepository } from './maintenance/repository.js';
+import { createMaintenanceRouter } from './maintenance/routes.js';
 import { requestLogger } from './middleware/logging.js';
 import { originCheck } from './middleware/security.js';
 import { errorHandler, notFoundHandler } from './middleware/errors.js';
@@ -36,7 +42,13 @@ export function createApp(config) {
   const users = createUserRepository(db);
   const sites = createSiteRepository(db);
   const workOrders = createWorkOrderRepository(db);
-  const deps = { db, sessions, users, sites, workOrders, config };
+  const checklist = createChecklistRepository(db);
+  const timeLogs = createTimeLogRepository(db);
+  const templates = createTemplateRepository(db);
+  const schedules = createScheduleRepository(db);
+  const deps = {
+    db, sessions, users, sites, workOrders, checklist, timeLogs, templates, schedules, config,
+  };
 
   const app = express();
   app.disable('x-powered-by');
@@ -96,6 +108,8 @@ export function createApp(config) {
   app.use('/api/users', createUserRouter(deps));
   app.use('/api/sites', createSiteRouter(deps));
   app.use('/api/work-orders', createWorkOrderRouter(deps));
+  app.use('/api/templates', createTemplateRouter(deps));
+  app.use('/api/maintenance', createMaintenanceRouter(deps));
   app.use('/api', notFoundHandler);
 
   app.use('/vendor/leaflet', express.static(join(LEAFLET_DIR, 'dist'), { immutable: true, maxAge: '7d' }));
@@ -103,5 +117,5 @@ export function createApp(config) {
   app.use(express.static(PUBLIC_DIR, { extensions: ['html'], maxAge: 0, etag: true }));
   app.use(errorHandler);
 
-  return { app, db, sessions };
+  return { app, db, sessions, deps };
 }
