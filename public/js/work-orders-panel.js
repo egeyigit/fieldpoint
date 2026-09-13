@@ -18,6 +18,14 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
   let orders = [];
   let directory = [];
   let openOrderId = null;
+  let opener = null;
+
+  /** Closes the dialog and returns focus to whatever opened it. */
+  function closeDialog() {
+    dialog.close();
+    if (opener && typeof opener.focus === 'function') opener.focus();
+    opener = null;
+  }
 
   setOptions($('#wo-filter-status'), Object.entries(WORK_ORDER_STATUSES), { placeholder: 'Any status' });
   setOptions($('#wo-filter-priority'), Object.entries(WORK_ORDER_PRIORITIES), { placeholder: 'Any priority' });
@@ -112,6 +120,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
   }
 
   async function openEditor(order = null, preset = {}) {
+    opener = document.activeElement;
     form.reset();
     errorBox.textContent = '';
     openOrderId = order?.id ?? null;
@@ -185,7 +194,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
         await api.createWorkOrder(payload);
         toast('Work order created');
       }
-      dialog.close();
+      closeDialog();
       await refresh();
     } catch (error) {
       errorBox.textContent = error.message;
@@ -210,7 +219,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
     if (!openOrderId || !window.confirm('Delete this work order and its comments?')) return;
     try {
       await api.deleteWorkOrder(openOrderId);
-      dialog.close();
+      closeDialog();
       toast('Work order deleted');
       await refresh();
     } catch (error) {
@@ -218,7 +227,11 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
     }
   });
 
-  $('#wo-cancel').addEventListener('click', () => dialog.close());
+  $('#wo-cancel').addEventListener('click', () => closeDialog());
+  dialog.addEventListener('close', () => {
+    if (opener && typeof opener.focus === 'function') opener.focus();
+    opener = null;
+  });
   $('#wo-add').addEventListener('click', () => openEditor());
   for (const id of ['#wo-filter-status', '#wo-filter-priority', '#wo-sort', '#wo-filter-mine', '#wo-filter-open']) {
     $(id).addEventListener('change', refresh);

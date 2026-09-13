@@ -15,6 +15,14 @@ export function createSitesPanel({ mapView, currentUser }) {
   let directory = [];
   let selectedId = null;
   let nearMe = null;
+  let opener = null;
+
+  /** Closes the dialog and returns focus to whatever opened it. */
+  function closeDialog() {
+    dialog.close();
+    if (opener && typeof opener.focus === 'function') opener.focus();
+    opener = null;
+  }
 
   setOptions($('#filter-category'), Object.entries(CATEGORIES).map(([key, value]) => [key, value.label]), { placeholder: 'All categories' });
   setOptions($('#filter-status'), Object.entries(STATUSES), { placeholder: 'All statuses' });
@@ -184,6 +192,7 @@ export function createSitesPanel({ mapView, currentUser }) {
   }
 
   function openEditor(site = null, preset = {}) {
+    opener = document.activeElement;
     form.reset();
     errorBox.textContent = '';
     $('#site-dialog-title').textContent = site ? 'Edit site' : 'New site';
@@ -216,7 +225,7 @@ export function createSitesPanel({ mapView, currentUser }) {
         await api.createSite(data);
         toast('Site created');
       }
-      dialog.close();
+      closeDialog();
       await refresh();
     } catch (error) {
       errorBox.textContent = error.message;
@@ -229,7 +238,7 @@ export function createSitesPanel({ mapView, currentUser }) {
     if (!id || !window.confirm(`Delete “${site?.name ?? 'this site'}”? Admins can restore it from the recycle bin.`)) return;
     try {
       await api.deleteSite(id);
-      dialog.close();
+      closeDialog();
       selectedId = null;
       toast('Site deleted');
       await refresh();
@@ -286,7 +295,11 @@ export function createSitesPanel({ mapView, currentUser }) {
   }
 
   form.addEventListener('submit', submitEditor);
-  $('#cancel-btn').addEventListener('click', () => dialog.close());
+  $('#cancel-btn').addEventListener('click', () => closeDialog());
+  dialog.addEventListener('close', () => {
+    if (opener && typeof opener.focus === 'function') opener.focus();
+    opener = null;
+  });
   $('#delete-btn').addEventListener('click', deleteCurrent);
   $('#geocode-btn').addEventListener('click', locateAddress);
   $('#add-btn').addEventListener('click', () => openEditor());

@@ -102,7 +102,7 @@
     <main id="map" role="application" aria-label="Map"></main>
 
     <!-- Site editor -->
-    <dialog id="site-dialog">
+    <dialog id="site-dialog" aria-labelledby="site-dialog-title" aria-describedby="site-error">
       <form id="site-form" method="dialog">
         <h3 id="site-dialog-title">New site</h3>
         <input type="hidden" name="id" />
@@ -124,7 +124,7 @@
         <label>Assigned to<select name="assignedTo" id="form-assigned"></select></label>
         <label>Notes<textarea name="notes" rows="3" maxlength="2000"></textarea></label>
         <p class="muted mono" id="site-meta"></p>
-        <p class="error" id="site-error" role="alert"></p>
+        <p class="error" id="site-error" role="alert" aria-live="assertive"></p>
         <div class="row between">
           <button type="button" id="delete-btn" class="danger small" hidden>Delete</button>
           <div class="row gap">
@@ -136,7 +136,7 @@
     </dialog>
 
     <!-- Work order editor -->
-    <dialog id="wo-dialog">
+    <dialog id="wo-dialog" aria-labelledby="wo-dialog-title" aria-describedby="wo-error">
       <form id="wo-form" method="dialog">
         <h3 id="wo-dialog-title">New work order</h3>
         <label>Site<select id="wo-site" required></select></label>
@@ -151,7 +151,7 @@
           <label>Due date<input name="dueDate" type="date" /></label>
         </div>
         <p class="muted mono" id="wo-meta"></p>
-        <p class="error" id="wo-error" role="alert"></p>
+        <p class="error" id="wo-error" role="alert" aria-live="assertive"></p>
         <div class="row between">
           <button type="button" id="wo-delete" class="danger small" hidden>Delete</button>
           <div class="row gap">
@@ -171,7 +171,7 @@
     </dialog>
   </div>
 
-  <div id="toast" class="toast" role="status" hidden></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="/vendor/leaflet/leaflet.js"></script>
   <script type="module" src="/js/main.js"></script>
