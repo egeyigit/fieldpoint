@@ -79,7 +79,10 @@ export function loadConfig(env = process.env) {
     isProduction: nodeEnv === 'production',
     isTest: nodeEnv === 'test',
     port: parseIntOr(env.PORT, DEFAULT_PORT),
-    host: env.HOST?.trim() || '0.0.0.0',
+    // No HOST means loopback-only in dev, so a plain `npm start` is not exposed
+    // to the LAN. Production (and every container, which sets HOST anyway)
+    // still binds all interfaces.
+    host: env.HOST?.trim() || (nodeEnv === 'production' ? '0.0.0.0' : '127.0.0.1'),
     dbPath,
     sessionSecret: resolveSessionSecret(env, dbPath),
     sessionTtlMs: parseIntOr(env.SESSION_TTL_HOURS, DEFAULT_SESSION_TTL_HOURS) * 60 * 60 * 1000,

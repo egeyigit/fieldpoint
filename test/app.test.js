@@ -67,6 +67,21 @@ describe('config', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it('binds loopback only by default in development', () => {
+    const config = loadConfig({ DB_PATH: ':memory:' });
+    assert.equal(config.host, '127.0.0.1');
+  });
+
+  it('binds all interfaces in production by default', () => {
+    const config = loadConfig({ NODE_ENV: 'production', DB_PATH: ':memory:', SESSION_SECRET: 'z'.repeat(40) });
+    assert.equal(config.host, '0.0.0.0');
+  });
+
+  it('honours an explicit HOST', () => {
+    const config = loadConfig({ DB_PATH: ':memory:', HOST: '0.0.0.0' });
+    assert.equal(config.host, '0.0.0.0');
+  });
+
   it('applies defaults and parses overrides', () => {
     const config = loadConfig({ DB_PATH: ':memory:', PORT: '5000', SESSION_TTL_HOURS: '1', ALLOWED_ORIGINS: 'https://a.test, https://b.test' });
     assert.equal(config.port, 5000);

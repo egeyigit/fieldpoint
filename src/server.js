@@ -27,8 +27,10 @@ async function main() {
   const server = app.listen(config.port, config.host, () => {
     console.log(`[fieldpoint] ${config.nodeEnv} · db=${config.dbPath}`);
     console.log(`[fieldpoint] local:   http://localhost:${config.port}`);
-    for (const address of lanAddresses()) {
-      console.log(`[fieldpoint] network: http://${address}:${config.port}`);
+    if (config.host === '0.0.0.0' || config.host === '::') {
+      for (const address of lanAddresses()) {
+        console.log(`[fieldpoint] network: http://${address}:${config.port}`);
+      }
     }
   });
 
