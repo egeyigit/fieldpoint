@@ -21,6 +21,7 @@ const fields = {
   intervalDays: z.coerce.number().int().min(1).max(MAX_INTERVAL_DAYS),
   nextDueDate: calendarDate,
   isActive: z.boolean(),
+  skipIfOpen: z.boolean(),
 };
 
 export const createScheduleSchema = z.object({
@@ -29,6 +30,7 @@ export const createScheduleSchema = z.object({
   description: fields.description.default(''),
   priority: fields.priority.default('normal'),
   assignedTo: fields.assignedTo.default(null),
+  skipIfOpen: fields.skipIfOpen.default(true),
 }).omit({ isActive: true });
 
 export const updateScheduleSchema = z

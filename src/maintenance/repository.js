@@ -1,8 +1,11 @@
 const COLUMNS = `s.id, s.site_id AS siteId, s.template_id AS templateId, s.title, s.description,
   s.priority, s.assigned_to AS assignedTo, s.interval_days AS intervalDays,
   s.next_due_date AS nextDueDate, s.last_generated_at AS lastGeneratedAt,
-  s.is_active AS isActive, s.created_at AS createdAt, s.updated_at AS updatedAt,
-  site.name AS siteName, au.name AS assignedToName, t.name AS templateName`;
+  s.is_active AS isActive, s.skip_if_open AS skipIfOpen,
+  s.created_at AS createdAt, s.updated_at AS updatedAt,
+  site.name AS siteName, au.name AS assignedToName, t.name AS templateName,
+  (SELECT COUNT(*) FROM work_orders w
+     WHERE w.schedule_id = s.id AND w.status NOT IN ('done', 'cancelled')) AS openOrderCount`;
 const FROM = `FROM maintenance_schedules s
   JOIN sites site ON site.id = s.site_id
   LEFT JOIN users au ON au.id = s.assigned_to
@@ -10,7 +13,7 @@ const FROM = `FROM maintenance_schedules s
 
 const UPDATABLE = [
   'templateId', 'title', 'description', 'priority', 'assignedTo',
-  'intervalDays', 'nextDueDate', 'isActive',
+  'intervalDays', 'nextDueDate', 'isActive', 'skipIfOpen',
 ];
 const COLUMN_BY_FIELD = {
   templateId: 'template_id',
@@ -18,6 +21,7 @@ const COLUMN_BY_FIELD = {
   intervalDays: 'interval_days',
   nextDueDate: 'next_due_date',
   isActive: 'is_active',
+  skipIfOpen: 'skip_if_open',
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -53,7 +57,15 @@ export function createScheduleRepository(db) {
      WHERE id = ?`,
   );
 
-  const hydrate = (row) => (row ? { ...row, isActive: Boolean(row.isActive) } : null);
+  const hydrate = (row) =>
+    (row
+      ? {
+        ...row,
+        isActive: Boolean(row.isActive),
+        skipIfOpen: Boolean(row.skipIfOpen),
+        hasOpenGeneratedOrder: row.openOrderCount > 0,
+      }
+      : null);
 
   return {
     findById: (id) => hydrate(byId.get(id)),
@@ -95,6 +107,15 @@ export function createScheduleRepository(db) {
     },
     remove: (id) => remove.run(id).changes > 0,
     markGenerated: (id, nextDueDate) => markGenerated.run(nextDueDate, id),
+    // True when this schedule has already generated an order that is not yet
+    // in a terminal status. Read inside the generator's transaction.
+    hasOpenGeneratedOrder: (id) =>
+      db
+        .prepare(
+          `SELECT COUNT(*) AS count FROM work_orders
+           WHERE schedule_id = ? AND status NOT IN ('done', 'cancelled')`,
+        )
+        .get(id).count > 0,
   };
 }
 

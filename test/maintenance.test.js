@@ -145,6 +145,46 @@ describe('maintenance schedules', () => {
     assert.equal(created[0].title, 'Monthly generator test');
   });
 
+  it('skips generation and advances the date while the last order is still open', async () => {
+    const { body } = await ctx.agent.post('/api/maintenance').send(schedule({ nextDueDate: TODAY }));
+    await ctx.agent.post('/api/maintenance/run');
+    assert.equal((await ctx.agent.get('/api/work-orders')).body.total, 1);
+
+    // The generated order is still open, so the next sweep must not duplicate it.
+    const skipRun = await ctx.agent.post('/api/maintenance/run');
+    assert.deepEqual(skipRun.body.created, []);
+    assert.equal(skipRun.body.skipped.length, 1);
+    assert.equal(skipRun.body.skipped[0].scheduleId, body.schedule.id);
+    assert.equal((await ctx.agent.get('/api/work-orders')).body.total, 1);
+
+    // The due date moved forward and the schedule flags the open order.
+    const after = await ctx.agent.get(`/api/maintenance/${body.schedule.id}`);
+    assert.ok(after.body.schedule.nextDueDate > TODAY);
+    assert.equal(after.body.schedule.hasOpenGeneratedOrder, true);
+
+    const actions = (await ctx.agent.get('/api/users/audit')).body.entries.map((entry) => entry.action);
+    assert.ok(actions.includes('schedule.skip'), 'expected schedule.skip');
+  });
+
+  it('resumes generation once the prior order is closed', async () => {
+    await ctx.agent.post('/api/maintenance').send(schedule({ nextDueDate: TODAY }));
+    await ctx.agent.post('/api/maintenance/run');
+    const orderId = (await ctx.agent.get('/api/work-orders')).body.workOrders[0].id;
+    await ctx.agent.patch(`/api/work-orders/${orderId}`).send({ status: 'done' });
+
+    const run = await ctx.agent.post('/api/maintenance/run');
+    assert.equal(run.body.created.length, 1);
+    assert.equal((await ctx.agent.get('/api/work-orders')).body.total, 2);
+  });
+
+  it('with skipIfOpen off, keeps generating even while an order is open', async () => {
+    await ctx.agent.post('/api/maintenance').send(schedule({ nextDueDate: TODAY, skipIfOpen: false }));
+    await ctx.agent.post('/api/maintenance/run');
+    const run = await ctx.agent.post('/api/maintenance/run');
+    assert.equal(run.body.created.length, 1);
+    assert.equal((await ctx.agent.get('/api/work-orders')).body.total, 2);
+  });
+
   it('audits create, update, delete and a generating sweep', async () => {
     const { body } = await ctx.agent.post('/api/maintenance').send(schedule({ nextDueDate: TODAY }));
     await ctx.agent.patch(`/api/maintenance/${body.schedule.id}`).send({ priority: 'high' });

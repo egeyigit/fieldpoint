@@ -93,13 +93,20 @@ export function createMaintenanceRouter(deps) {
   /** Runs the sweep now instead of waiting for the timer. */
   router.post('/run', requireRole('admin'), (req, res) => {
     const created = generateDueWorkOrders(db, { ...deps, actorId: req.user.id });
+    const skipped = created.skipped ?? [];
     if (created.length > 0) {
       recordAudit(db, {
         userId: req.user.id, action: 'schedule.generate', entityType: 'schedule',
         details: { created: created.length },
       });
     }
-    res.json({ ok: true, created });
+    for (const skip of skipped) {
+      recordAudit(db, {
+        userId: req.user.id, action: 'schedule.skip', entityType: 'schedule', entityId: skip.scheduleId,
+        details: { title: skip.title, reason: 'last generated order still open' },
+      });
+    }
+    res.json({ ok: true, created, skipped });
   });
 
   return router;

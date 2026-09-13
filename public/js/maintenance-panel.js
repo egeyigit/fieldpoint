@@ -55,6 +55,12 @@ export function createMaintenancePanel({ currentUser, getSites }) {
         : 'never generated';
 
       item.append(title, sub, meta);
+      if (schedule.skipIfOpen && schedule.hasOpenGeneratedOrder) {
+        const waiting = document.createElement('div');
+        waiting.className = 'sub meta waiting';
+        waiting.textContent = 'last generated order still open — generation paused';
+        item.append(waiting);
+      }
       if (isAdmin) item.append(removeButton(`Delete ${schedule.title}`, () => removeSchedule(schedule)));
       scheduleList.append(item);
     }

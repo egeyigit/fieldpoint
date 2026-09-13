@@ -2,6 +2,7 @@ import { migration001Baseline } from './001-baseline.js';
 import { migration002SiteOwnership } from './002-site-ownership.js';
 import { migration003WorkOrders } from './003-work-orders.js';
 import { migration004PlannedMaintenance } from './004-planned-maintenance.js';
+import { migration005ScheduleSkipIfOpen } from './005-schedule-skip-if-open.js';
 
 /**
  * Ordered migration list. Each entry runs once, inside a transaction, and the
@@ -13,6 +14,7 @@ export const MIGRATIONS = Object.freeze([
   migration002SiteOwnership,
   migration003WorkOrders,
   migration004PlannedMaintenance,
+  migration005ScheduleSkipIfOpen,
 ]);
 
 export const LATEST_VERSION = MIGRATIONS.at(-1).version;

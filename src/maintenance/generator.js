@@ -11,6 +11,7 @@ import { advanceDueDate, todayIso } from './repository.js';
 export function generateDueWorkOrders(db, { schedules, workOrders, checklist, templates, today = todayIso(), actorId = null } = {}) {
   const due = schedules.list({ dueOnly: true, today });
   const created = [];
+  const skipped = [];
 
   for (const schedule of due) {
     db.exec('BEGIN IMMEDIATE');
@@ -19,6 +20,15 @@ export function generateDueWorkOrders(db, { schedules, workOrders, checklist, te
       const current = schedules.findById(schedule.id);
       if (!current || !current.isActive || current.nextDueDate > today) {
         db.exec('ROLLBACK');
+        continue;
+      }
+      // The order this schedule generated last time is still open. Rather than
+      // stack a duplicate, advance the due date and move on; generation
+      // resumes once that order is closed. Opt out per schedule with skipIfOpen.
+      if (current.skipIfOpen && schedules.hasOpenGeneratedOrder(current.id)) {
+        schedules.markGenerated(current.id, advanceDueDate(current.nextDueDate, current.intervalDays, today));
+        db.exec('COMMIT');
+        skipped.push({ scheduleId: current.id, title: current.title });
         continue;
       }
       const order = workOrders.create(
@@ -48,5 +58,6 @@ export function generateDueWorkOrders(db, { schedules, workOrders, checklist, te
       console.error(`[maintenance] schedule ${schedule.id} failed to generate`, error);
     }
   }
+  created.skipped = skipped;
   return created;
 }
