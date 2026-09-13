@@ -124,7 +124,7 @@ describe('session cookie hardening', () => {
     }
   });
 
-  it('slides an active session past the flat TTL up to the absolute cap', () => {
+  it('slides an active session forward but never past the absolute cap', () => {
     const db = openDatabase(':memory:');
     try {
       db.prepare(`INSERT INTO users (email, name, password_hash, role) VALUES ('a@b.c', 'A', 'x', 'admin')`).run();
@@ -133,16 +133,40 @@ describe('session cookie hardening', () => {
       const store = createSessionStore(db, { secret: 'x'.repeat(40), ttlMs, idleMs: 8 * 60 * 60 * 1000 });
       const token = store.create(userId);
       const id = token.split('.')[0];
-      const before = db.prepare('SELECT expires_at AS e FROM sessions WHERE id = ?').get(id).e;
-      // Backdate the session so its original expiry has already passed, but its
-      // last activity was recent: sliding expiry must keep it alive.
+      const absoluteCap = db.prepare('SELECT absolute_expires_at AS c FROM sessions WHERE id = ?').get(id).c;
+      // Shrink the working expiry so a slide has room to move it forward, but
+      // keep last_seen_at recent so the idle check passes.
+      const shrunk = Date.now() + 60 * 1000;
       db.prepare('UPDATE sessions SET expires_at = ?, last_seen_at = ? WHERE id = ?')
-        .run(Date.now() - 1000, Date.now(), id);
+        .run(shrunk, Date.now(), id);
       const user = store.resolve(token);
       assert.equal(user.email, 'a@b.c');
       const after = db.prepare('SELECT expires_at AS e FROM sessions WHERE id = ?').get(id).e;
-      assert.ok(after > Date.now(), 'expiry should slide forward past now');
-      assert.ok(after > before - ttlMs, 'renewed expiry reflects a fresh ttl window');
+      assert.ok(after > shrunk, 'expiry should slide forward on activity');
+      assert.ok(after <= absoluteCap, 'expiry must never exceed the absolute cap');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('cannot be renewed past its absolute lifetime cap', () => {
+    const db = openDatabase(':memory:');
+    try {
+      db.prepare(`INSERT INTO users (email, name, password_hash, role) VALUES ('a@b.c', 'A', 'x', 'admin')`).run();
+      const userId = db.prepare(`SELECT id FROM users WHERE email = 'a@b.c'`).get().id;
+      const ttlMs = 72 * 60 * 60 * 1000;
+      const store = createSessionStore(db, { secret: 'x'.repeat(40), ttlMs, idleMs: 8 * 60 * 60 * 1000 });
+      const token = store.create(userId);
+      const id = token.split('.')[0];
+      const absoluteCap = db.prepare('SELECT absolute_expires_at AS c FROM sessions WHERE id = ?').get(id).c;
+      // Simulate a caller that keeps touching the session past its cap: we
+      // walk the clock forward by rewriting last_seen_at, then resolve, and
+      // the row must be gone once now has crossed absolute_expires_at.
+      db.prepare('UPDATE sessions SET last_seen_at = ?, absolute_expires_at = ?, expires_at = ? WHERE id = ?')
+        .run(Date.now(), Date.now() - 1, Date.now() - 1, id);
+      assert.equal(store.resolve(token), null);
+      assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions WHERE id = ?').get(id).count, 0);
+      assert.ok(absoluteCap > Date.now() - ttlMs);
     } finally {
       db.close();
     }

@@ -20,10 +20,11 @@ export const DEFAULT_IDLE_TIMEOUT_MS = 8 * 60 * 60 * 1000;
  */
 export function createSessionStore(db, { secret, ttlMs, idleMs = DEFAULT_IDLE_TIMEOUT_MS }) {
   const insert = db.prepare(
-    `INSERT INTO sessions (id, user_id, expires_at, last_seen_at) VALUES (?, ?, ?, ?)`,
+    `INSERT INTO sessions (id, user_id, expires_at, last_seen_at, absolute_expires_at) VALUES (?, ?, ?, ?, ?)`,
   );
   const select = db.prepare(
     `SELECT s.id, s.user_id AS userId, s.expires_at AS expiresAt, s.last_seen_at AS lastSeenAt,
+            s.absolute_expires_at AS absoluteExpiresAt,
             u.email, u.name, u.role, u.is_active AS isActive
      FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?`,
   );
@@ -50,15 +51,17 @@ export function createSessionStore(db, { secret, ttlMs, idleMs = DEFAULT_IDLE_TI
     create(userId) {
       const id = randomBytes(TOKEN_BYTES).toString('hex');
       const now = Date.now();
-      insert.run(id, userId, now + ttlMs, now);
+      const absoluteExpiresAt = now + ttlMs;
+      insert.run(id, userId, absoluteExpiresAt, now, absoluteExpiresAt);
       return `${id}.${sign(id)}`;
     },
     /**
      * Returns the user for a valid session, else null. A session is invalid if
      * its absolute expiry has passed, it has been idle past idleMs, or the user
      * is inactive — all three delete the row. On a valid session the idle clock
-     * is reset and the absolute expiry slides forward by ttlMs, capped so a
-     * session created at time T can never live past T + ttlMs.
+     * is reset and the working expiry slides forward by ttlMs, capped by the
+     * per-session absolute_expires_at so a session created at time T can never
+     * live past T + ttlMs no matter how often it is exercised.
      */
     resolve(token) {
       const id = verifyToken(token);
@@ -67,11 +70,13 @@ export function createSessionStore(db, { secret, ttlMs, idleMs = DEFAULT_IDLE_TI
       if (!row) return null;
       const now = Date.now();
       const idleDeadline = row.lastSeenAt + idleMs;
-      if (row.expiresAt < now || idleDeadline < now || !row.isActive) {
+      const absoluteCap = row.absoluteExpiresAt ?? row.expiresAt;
+      if (absoluteCap < now || idleDeadline < now || !row.isActive) {
         remove.run(id);
         return null;
       }
-      touch.run(now + ttlMs, now, id);
+      const slid = Math.min(now + ttlMs, absoluteCap);
+      touch.run(slid, now, id);
       return { id: row.userId, email: row.email, name: row.name, role: row.role };
     },
     destroy(token) {
