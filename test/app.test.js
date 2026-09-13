@@ -36,8 +36,26 @@ describe('app plumbing', () => {
 });
 
 describe('config', () => {
-  it('requires SESSION_SECRET in production', () => {
-    assert.throws(() => loadConfig({ NODE_ENV: 'production' }), /SESSION_SECRET/);
+  it('falls back to a persisted generated secret in production and warns', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fieldpoint-prod-'));
+    const warnings = [];
+    const originalWarn = console.warn;
+    console.warn = (message) => warnings.push(String(message));
+    try {
+      const first = loadConfig({ NODE_ENV: 'production', DB_PATH: join(dir, 'x.db') });
+      const second = loadConfig({ NODE_ENV: 'production', DB_PATH: join(dir, 'x.db') });
+      assert.equal(first.sessionSecret, second.sessionSecret);
+      assert.ok(first.sessionSecret.length >= 32);
+      assert.ok(warnings.some((line) => line.includes('SESSION_SECRET is not set')));
+    } finally {
+      console.warn = originalWarn;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('prefers an explicit SESSION_SECRET over the persisted one', () => {
+    const config = loadConfig({ NODE_ENV: 'production', DB_PATH: ':memory:', SESSION_SECRET: 'y'.repeat(40) });
+    assert.equal(config.sessionSecret, 'y'.repeat(40));
   });
 
   it('persists a generated dev secret next to the database', () => {

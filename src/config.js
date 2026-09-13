@@ -17,8 +17,8 @@ function parseIntOr(value, fallback) {
 const DEV_SECRET_FILE = '.session-secret';
 
 /**
- * Development only: keep a generated secret next to the database so sessions
- * survive restarts. Falls back to an in-memory secret if the file is unwritable.
+ * Keep a generated secret next to the database so sessions survive restarts.
+ * Falls back to an in-memory secret if the file is unwritable.
  */
 function loadOrCreateDevSecret(dbPath) {
   if (dbPath === ':memory:') return randomBytes(32).toString('hex');
@@ -41,21 +41,20 @@ function loadOrCreateDevSecret(dbPath) {
 function resolveSessionSecret(env, dbPath) {
   const provided = env.SESSION_SECRET?.trim();
   if (provided && provided.length >= MIN_SECRET_LENGTH) return provided;
-  if (env.NODE_ENV === 'production') {
-    throw new Error(
-      `SESSION_SECRET must be set (>= ${MIN_SECRET_LENGTH} chars) when NODE_ENV=production`,
-    );
-  }
   if (provided) {
     console.warn(`[config] SESSION_SECRET shorter than ${MIN_SECRET_LENGTH} chars; ignoring it`);
   }
+  // No usable secret was supplied. A generated one persisted beside the
+  // database keeps sessions valid across restarts and never lands in an image
+  // layer or the repository. Production says so loudly: an operator who meant
+  // to set SESSION_SECRET should notice, and a demo boot still comes up.
+  if (env.NODE_ENV === 'production') {
+    console.warn(
+      '[config] SESSION_SECRET is not set; using a generated secret persisted next to the database. ' +
+        'Set SESSION_SECRET for any deployment that is not a demo.',
+    );
+  }
   return loadOrCreateDevSecret(dbPath);
-}
-
-/** Relative DB paths are anchored to the project root, not the process cwd. */
-function resolveDbPath(dbPath) {
-  if (dbPath === ':memory:' || isAbsolute(dbPath)) return dbPath;
-  return resolve(PROJECT_ROOT, dbPath);
 }
 
 function parseOrigins(value) {

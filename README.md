@@ -19,8 +19,9 @@ Built to be boring and dependable: Node.js + Express 5, SQLite through the Node 
 - **Observability** — one structured JSON log line per request (no bodies, cookies or credentials), an `x-request-id` on every response, and a health check that actually queries the database.
 - **Migrations** — numbered, transactional migrations in `src/db/migrations/`; an older database upgrades on boot and a newer one is refused.
 
-> **Mock application.** Demo credentials and the session secret are committed on purpose
-> (`.env`, `Dockerfile`) so the app boots anywhere with zero setup. Do not reuse them for real data.
+> **Mock application.** Demo credentials are committed on purpose so the app boots anywhere with
+> zero setup. No secret is baked into the image: `SESSION_SECRET` is read from the environment and,
+> when absent, generated and persisted beside the database.
 
 ## Demo accounts
 
@@ -54,7 +55,7 @@ Copy `.env.example` to `.env` (or export variables). All optional in development
 | `PORT` | `4100` | HTTP port |
 | `HOST` | `0.0.0.0` | Bind address; use `127.0.0.1` to keep it local |
 | `DB_PATH` | `./data/fieldpoint.db` | SQLite file, directory auto-created |
-| `SESSION_SECRET` | demo value in `.env` / `Dockerfile` | Required in production, 32+ chars; override for real use |
+| `SESSION_SECRET` | generated and persisted at `<DB dir>/.session-secret` | Set explicitly (32+ chars) for anything that is not a demo; production logs a warning when unset |
 | `SEED_DEMO` | `false` (`true` in `.env` / `Dockerfile`) | Seed demo accounts + sites on boot |
 | `SESSION_TTL_HOURS` | `72` | Session lifetime |
 | `NODE_ENV` | `development` | `production` enables secure cookies + trust-proxy |
