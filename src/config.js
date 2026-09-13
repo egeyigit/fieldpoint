@@ -57,6 +57,12 @@ function resolveSessionSecret(env, dbPath) {
   return loadOrCreateDevSecret(dbPath);
 }
 
+/** Relative DB paths are anchored to the project root, not the process cwd. */
+function resolveDbPath(dbPath) {
+  if (dbPath === ':memory:' || isAbsolute(dbPath)) return dbPath;
+  return resolve(PROJECT_ROOT, dbPath);
+}
+
 function parseOrigins(value) {
   if (!value) return [];
   return value
