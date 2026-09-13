@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { bootApp } from './helpers.js';
 import { loadConfig } from '../src/config.js';
+import { LATEST_VERSION } from '../src/db/migrations/index.js';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,6 +16,9 @@ describe('app plumbing', () => {
     const response = await ctx.agent.get('/api/health');
     assert.equal(response.status, 200);
     assert.equal(response.body.service, 'fieldpoint');
+    assert.equal(response.body.schemaVersion, LATEST_VERSION);
+    assert.equal(response.body.latestVersion, LATEST_VERSION);
+    assert.equal(response.body.pendingMigrations, 0);
   });
 
   it('serves the SPA and vendored leaflet', async () => {

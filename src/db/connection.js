@@ -10,7 +10,7 @@ function ensureDirectory(dbPath) {
   mkdirSync(dirname(dbPath), { recursive: true });
 }
 
-function readVersion(db) {
+export function readVersion(db) {
   const row = db.prepare(`SELECT value FROM schema_meta WHERE key = 'version'`).get();
   return row ? Number(row.value) : 0;
 }

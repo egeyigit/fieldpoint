@@ -36,6 +36,13 @@ jobs:
             sleep 2
           done
           echo "health never passed"; exit 1
+      - name: Assert schema is fully migrated
+        run: |
+          set -euo pipefail
+          body=$(curl -sf localhost:4100/api/health)
+          echo "$body"
+          echo "$body" | grep -q '"pendingMigrations":0'
+          echo "$body" | grep -q '"ok":true'
       - name: Assert the container never restarted
         run: |
           set -euo pipefail

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { requestLogger } from '../src/middleware/logging.js';
+import { LATEST_VERSION } from '../src/db/migrations/index.js';
 import { ADMIN, bootApp, registerAdmin } from './helpers.js';
 
 /** Drives the middleware with the smallest req/res pair it actually touches. */
@@ -94,6 +95,27 @@ describe('health', () => {
       { ok: response.body.ok, service: response.body.service, database: response.body.database },
       { ok: true, service: 'fieldpoint', database: 'ok' },
     );
+  });
+
+  it('reports schema version, latest version, and zero pending migrations on clean boot', async () => {
+    const response = await ctx.agent.get('/api/health');
+    assert.equal(response.status, 200);
+    assert.equal(response.body.schemaVersion, LATEST_VERSION);
+    assert.equal(response.body.latestVersion, LATEST_VERSION);
+    assert.equal(response.body.pendingMigrations, 0);
+  });
+
+  it('returns 503 when the database schema is behind the code', async () => {
+    // Manually set the schema version to an older value to simulate a stale database.
+    ctx.db.prepare(
+      `UPDATE schema_meta SET value = ? WHERE key = 'version'`,
+    ).run(String(LATEST_VERSION - 1));
+    const response = await ctx.agent.get('/api/health');
+    assert.equal(response.status, 503);
+    assert.equal(response.body.ok, false);
+    assert.equal(response.body.schemaVersion, LATEST_VERSION - 1);
+    assert.equal(response.body.latestVersion, LATEST_VERSION);
+    assert.equal(response.body.pendingMigrations, 1);
   });
 
   it('returns 503 when the database is gone', async () => {

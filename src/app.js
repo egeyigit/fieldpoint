@@ -4,7 +4,8 @@ import rateLimit from 'express-rate-limit';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openDatabase } from './db/connection.js';
+import { openDatabase, readVersion } from './db/connection.js';
+import { LATEST_VERSION } from './db/migrations/index.js';
 import { createSessionStore } from './auth/session.js';
 import { attachUser } from './auth/middleware.js';
 import { createAuthRouter } from './auth/routes.js';
@@ -65,17 +66,28 @@ export function createApp(config) {
   // healthy, and both Docker and the deploy manifest gate on this route.
   app.get('/api/health', (_req, res) => {
     let database = 'ok';
+    let schemaVersion = null;
+    let pendingMigrations = null;
     try {
       db.prepare('SELECT 1 AS ok').get();
+      schemaVersion = readVersion(db);
+      pendingMigrations = LATEST_VERSION - schemaVersion;
     } catch (error) {
       database = 'error';
       console.error('[health] database check failed', error);
     }
-    const healthy = database === 'ok';
+    const schemaStale = schemaVersion !== null && schemaVersion < LATEST_VERSION;
+    const healthy = database === 'ok' && !schemaStale;
+    if (schemaStale) {
+      console.error(`[health] schema version ${schemaVersion} is behind latest ${LATEST_VERSION}`);
+    }
     res.status(healthy ? 200 : 503).json({
       ok: healthy,
       service: 'fieldpoint',
       database,
+      schemaVersion,
+      latestVersion: LATEST_VERSION,
+      pendingMigrations,
       time: new Date().toISOString(),
     });
   });
