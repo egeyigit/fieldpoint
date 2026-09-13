@@ -136,23 +136,68 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
     try {
       const { comments } = await api.getWorkOrder(id);
       commentList.replaceChildren(
-        ...comments.map((comment) => {
-          const item = document.createElement('li');
-          const author = document.createElement('b');
-          author.textContent = comment.authorName ?? 'removed user';
-          const when = document.createElement('span');
-          when.className = 'muted';
-          when.textContent = ` · ${relativeTime(comment.createdAt)}`;
-          when.title = absoluteTime(comment.createdAt);
-          const body = document.createElement('div');
-          body.textContent = comment.body;
-          item.append(author, when, body);
-          return item;
-        }),
+        ...comments.map((comment) => renderComment(id, comment)),
       );
     } catch (error) {
       errorBox.textContent = error.message;
     }
+  }
+
+  function renderComment(orderId, comment) {
+    const item = document.createElement('li');
+    const author = document.createElement('b');
+    author.textContent = comment.authorName ?? 'removed user';
+    const when = document.createElement('span');
+    when.className = 'muted';
+    when.textContent = ` · ${relativeTime(comment.createdAt)}`;
+    when.title = absoluteTime(comment.createdAt);
+    const body = document.createElement('div');
+    body.textContent = comment.body;
+    item.append(author, when, body);
+    if (comment.editedAt) {
+      const edited = document.createElement('span');
+      edited.className = 'muted';
+      edited.textContent = ' (edited)';
+      edited.title = absoluteTime(comment.editedAt);
+      when.after(edited);
+    }
+    const canMutate = comment.authorId === currentUser.id || currentUser.role === 'admin';
+    if (canMutate) {
+      const actions = document.createElement('div');
+      actions.className = 'row';
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'link-btn';
+      edit.textContent = 'Edit';
+      edit.addEventListener('click', async () => {
+        const next = window.prompt('Edit comment', comment.body);
+        if (next === null) return;
+        const trimmed = next.trim();
+        if (!trimmed) return;
+        try {
+          await api.updateWorkOrderComment(orderId, comment.id, trimmed);
+          await loadComments(orderId);
+        } catch (error) {
+          errorBox.textContent = error.message;
+        }
+      });
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'link-btn';
+      del.textContent = 'Delete';
+      del.addEventListener('click', async () => {
+        if (!window.confirm('Delete this comment?')) return;
+        try {
+          await api.deleteWorkOrderComment(orderId, comment.id);
+          await loadComments(orderId);
+        } catch (error) {
+          errorBox.textContent = error.message;
+        }
+      });
+      actions.append(edit, del);
+      item.append(actions);
+    }
+    return item;
   }
 
   function readForm() {

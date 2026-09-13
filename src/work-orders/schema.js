@@ -67,3 +67,10 @@ export const listWorkOrdersSchema = z.object({
 export const createCommentSchema = z.object({
   body: z.string().trim().min(1).max(MAX_COMMENT),
 });
+
+export const updateCommentSchema = createCommentSchema;
+
+export const commentIdSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  commentId: z.coerce.number().int().positive(),
+});

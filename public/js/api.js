@@ -46,6 +46,10 @@ export const api = {
   updateWorkOrder: (id, data) => request('PATCH', `/api/work-orders/${id}`, data),
   deleteWorkOrder: (id) => request('DELETE', `/api/work-orders/${id}`),
   addWorkOrderComment: (id, body) => request('POST', `/api/work-orders/${id}/comments`, { body }),
+  updateWorkOrderComment: (id, commentId, body) =>
+    request('PATCH', `/api/work-orders/${id}/comments/${commentId}`, { body }),
+  deleteWorkOrderComment: (id, commentId) =>
+    request('DELETE', `/api/work-orders/${id}/comments/${commentId}`),
   directory: () => request('GET', '/api/users/directory'),
   listUsers: () => request('GET', '/api/users'),
   updateUser: (id, data) => request('PATCH', `/api/users/${id}`, data),

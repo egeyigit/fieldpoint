@@ -36,9 +36,20 @@ export function createWorkOrderRepository(db) {
   );
   const listComments = db.prepare(
     `SELECT c.id, c.work_order_id AS workOrderId, c.author_id AS authorId, u.name AS authorName,
-            c.body, c.created_at AS createdAt
+            c.body, c.created_at AS createdAt, c.edited_at AS editedAt
      FROM work_order_comments c LEFT JOIN users u ON u.id = c.author_id
-     WHERE c.work_order_id = ? ORDER BY c.id ASC`,
+     WHERE c.work_order_id = ? AND c.deleted_at IS NULL ORDER BY c.id ASC`,
+  );
+  const commentById = db.prepare(
+    `SELECT c.id, c.work_order_id AS workOrderId, c.author_id AS authorId,
+            c.body, c.created_at AS createdAt, c.edited_at AS editedAt, c.deleted_at AS deletedAt
+     FROM work_order_comments c WHERE c.id = ?`,
+  );
+  const updateComment = db.prepare(
+    `UPDATE work_order_comments SET body = ?, edited_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?`,
+  );
+  const softDeleteComment = db.prepare(
+    `UPDATE work_order_comments SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND deleted_at IS NULL`,
   );
   const summary = db.prepare(
     `SELECT w.status, w.priority, COUNT(*) AS count FROM work_orders w
@@ -127,6 +138,12 @@ export function createWorkOrderRepository(db) {
       const result = insertComment.run(workOrderId, authorId, body);
       return listComments.all(workOrderId).find((comment) => comment.id === Number(result.lastInsertRowid));
     },
+    findComment: (commentId) => commentById.get(commentId) ?? null,
+    editComment: (commentId, body) => {
+      updateComment.run(body, commentId);
+      return commentById.get(commentId);
+    },
+    removeComment: (commentId) => softDeleteComment.run(commentId).changes > 0,
     comments: (workOrderId) => listComments.all(workOrderId),
     summary: () => summary.all(),
   };
