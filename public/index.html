@@ -36,6 +36,7 @@
       </nav>
       <div class="user-box">
         <span id="user-label" class="mono"></span>
+        <button id="password-btn" class="ghost">Change password</button>
         <button id="logout-btn" class="ghost">Sign out</button>
       </div>
     </header>
@@ -220,6 +221,21 @@
           <button type="submit" class="ghost small">Post</button>
         </form>
       </section>
+    </dialog>
+
+    <!-- Change password -->
+    <dialog id="password-dialog">
+      <form id="password-form" method="dialog">
+        <h3>Change password</h3>
+        <label>Current password<input name="currentPassword" type="password" required autocomplete="current-password" /></label>
+        <label>New password<input name="newPassword" type="password" required minlength="10" autocomplete="new-password" /></label>
+        <label>Confirm new password<input name="confirmPassword" type="password" required minlength="10" autocomplete="new-password" /></label>
+        <p class="error" id="password-error" role="alert"></p>
+        <div class="row between">
+          <button type="button" id="password-cancel" class="ghost">Cancel</button>
+          <button type="submit" class="primary">Change password</button>
+        </div>
+      </form>
     </dialog>
   </div>
 

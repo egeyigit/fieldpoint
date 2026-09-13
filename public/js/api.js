@@ -34,6 +34,7 @@ export const api = {
   login: (data) => request('POST', '/api/auth/login', data),
   register: (data) => request('POST', '/api/auth/register', data),
   logout: () => request('POST', '/api/auth/logout'),
+  changePassword: (data) => request('POST', '/api/auth/password', data),
   listSites: (params) => request('GET', `/api/sites?${new URLSearchParams(params)}`),
   siteStats: () => request('GET', '/api/sites/stats'),
   createSite: (data) => request('POST', '/api/sites', data),

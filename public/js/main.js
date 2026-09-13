@@ -76,6 +76,36 @@ async function showApp(user) {
     window.location.reload();
   });
 
+  const passwordDialog = $('#password-dialog');
+  const passwordForm = $('#password-form');
+  const passwordError = $('#password-error');
+  $('#password-btn').addEventListener('click', () => {
+    passwordForm.reset();
+    passwordError.textContent = '';
+    passwordDialog.showModal();
+  });
+  $('#password-cancel').addEventListener('click', () => passwordDialog.close());
+  passwordForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    passwordError.textContent = '';
+    const { currentPassword, newPassword, confirmPassword } = formValues(passwordForm);
+    if (newPassword.length < 10) {
+      passwordError.textContent = 'New password must be at least 10 characters';
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      passwordError.textContent = 'New passwords do not match';
+      return;
+    }
+    try {
+      await api.changePassword({ currentPassword, newPassword });
+      passwordDialog.close();
+      toast('Password changed');
+    } catch (error) {
+      passwordError.textContent = error.message;
+    }
+  });
+
   setTimeout(() => mapView.invalidate(), 0);
   await sitesPanel.refresh({ fit: true });
   // Templates feed the work-order dialog's picker, so load them up front.
