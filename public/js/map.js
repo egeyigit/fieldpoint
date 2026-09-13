@@ -1,13 +1,10 @@
 import { CATEGORIES, DEFAULT_VIEW } from './constants.js';
+import { escapeHtml } from './lib/html.js';
 
 const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const FOCUS_ZOOM = 15;
 const FIT_RETRY_FRAMES = 60;
-
-function escapeHtml(text) {
-  return String(text ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
-}
 
 function pinIcon(category, status) {
   const color = CATEGORIES[category]?.color ?? CATEGORIES.other.color;
