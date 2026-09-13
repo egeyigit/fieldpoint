@@ -1,5 +1,6 @@
 import { api, geocode, locateBrowser } from './api.js';
 import { CATEGORIES, NEAR_ME_RADIUS_KM, SITE_SORTS, STATUSES } from './constants.js';
+import { guardDialog } from './dialog-guard.js';
 import { $, absoluteTime, formValues, relativeTime, setOptions, toast } from './ui.js';
 
 const PAGE_SIZE = 1000;
@@ -15,6 +16,11 @@ export function createSitesPanel({ mapView, currentUser }) {
   let directory = [];
   let selectedId = null;
   let nearMe = null;
+
+  const guard = guardDialog(dialog, form, {
+    key: 'site',
+    serialize: (target) => formValues(target),
+  });
 
   setOptions($('#filter-category'), Object.entries(CATEGORIES).map(([key, value]) => [key, value.label]), { placeholder: 'All categories' });
   setOptions($('#filter-status'), Object.entries(STATUSES), { placeholder: 'All statuses' });
@@ -201,6 +207,13 @@ export function createSitesPanel({ mapView, currentUser }) {
       ? `Updated ${relativeTime(site.updatedAt)} by ${site.updatedByName ?? 'unknown'}`
       : '';
     $('#site-meta').title = site ? absoluteTime(site.updatedAt) : '';
+    const draft = guard.readDraft();
+    if (draft) {
+      for (const [key, value] of Object.entries(draft)) {
+        if (form.elements[key]) form.elements[key].value = value ?? '';
+      }
+    }
+    guard.markPristine();
     dialog.showModal();
   }
 
@@ -216,7 +229,7 @@ export function createSitesPanel({ mapView, currentUser }) {
         await api.createSite(data);
         toast('Site created');
       }
-      dialog.close();
+      guard.close();
       await refresh();
     } catch (error) {
       errorBox.textContent = error.message;
@@ -229,7 +242,7 @@ export function createSitesPanel({ mapView, currentUser }) {
     if (!id || !window.confirm(`Delete “${site?.name ?? 'this site'}”? Admins can restore it from the recycle bin.`)) return;
     try {
       await api.deleteSite(id);
-      dialog.close();
+      guard.close();
       selectedId = null;
       toast('Site deleted');
       await refresh();
@@ -286,7 +299,7 @@ export function createSitesPanel({ mapView, currentUser }) {
   }
 
   form.addEventListener('submit', submitEditor);
-  $('#cancel-btn').addEventListener('click', () => dialog.close());
+  $('#cancel-btn').addEventListener('click', () => guard.requestClose());
   $('#delete-btn').addEventListener('click', deleteCurrent);
   $('#geocode-btn').addEventListener('click', locateAddress);
   $('#add-btn').addEventListener('click', () => openEditor());

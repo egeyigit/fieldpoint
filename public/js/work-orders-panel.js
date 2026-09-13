@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { WORK_ORDER_PRIORITIES, WORK_ORDER_SORTS, WORK_ORDER_STATUSES } from './constants.js';
+import { guardDialog } from './dialog-guard.js';
 import { $, absoluteTime, relativeTime, setOptions, todayIso, toast } from './ui.js';
 
 const DONE_STATUSES = new Set(['done', 'cancelled']);
@@ -18,6 +19,21 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
   let orders = [];
   let directory = [];
   let openOrderId = null;
+
+  const draftFields = () => ({
+    siteId: $('#wo-site').value,
+    title: form.elements.title.value,
+    description: form.elements.description.value,
+    status: $('#wo-status').value,
+    priority: $('#wo-priority').value,
+    assignedTo: $('#wo-assigned').value,
+    dueDate: form.elements.dueDate.value,
+  });
+
+  const guard = guardDialog(dialog, form, {
+    key: 'work-order',
+    serialize: draftFields,
+  });
 
   setOptions($('#wo-filter-status'), Object.entries(WORK_ORDER_STATUSES), { placeholder: 'Any status' });
   setOptions($('#wo-filter-priority'), Object.entries(WORK_ORDER_PRIORITIES), { placeholder: 'Any priority' });
@@ -128,6 +144,17 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
       : '';
     $('#wo-meta').title = order ? absoluteTime(order.createdAt) : '';
     commentList.replaceChildren();
+    const draft = guard.readDraft();
+    if (draft) {
+      if (draft.siteId) $('#wo-site').value = draft.siteId;
+      form.elements.title.value = draft.title ?? '';
+      form.elements.description.value = draft.description ?? '';
+      if (draft.status) $('#wo-status').value = draft.status;
+      if (draft.priority) $('#wo-priority').value = draft.priority;
+      if (draft.assignedTo) $('#wo-assigned').value = draft.assignedTo;
+      form.elements.dueDate.value = draft.dueDate ?? '';
+    }
+    guard.markPristine();
     dialog.showModal();
     if (order) await loadComments(order.id);
   }
@@ -185,7 +212,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
         await api.createWorkOrder(payload);
         toast('Work order created');
       }
-      dialog.close();
+      guard.close();
       await refresh();
     } catch (error) {
       errorBox.textContent = error.message;
@@ -210,7 +237,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
     if (!openOrderId || !window.confirm('Delete this work order and its comments?')) return;
     try {
       await api.deleteWorkOrder(openOrderId);
-      dialog.close();
+      guard.close();
       toast('Work order deleted');
       await refresh();
     } catch (error) {
@@ -218,7 +245,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
     }
   });
 
-  $('#wo-cancel').addEventListener('click', () => dialog.close());
+  $('#wo-cancel').addEventListener('click', () => guard.requestClose());
   $('#wo-add').addEventListener('click', () => openEditor());
   for (const id of ['#wo-filter-status', '#wo-filter-priority', '#wo-sort', '#wo-filter-mine', '#wo-filter-open']) {
     $(id).addEventListener('change', refresh);
