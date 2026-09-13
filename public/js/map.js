@@ -5,7 +5,7 @@ const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyrigh
 const FOCUS_ZOOM = 15;
 const FIT_RETRY_FRAMES = 60;
 
-function escapeHtml(text) {
+export function escapeHtml(text) {
   return String(text ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
 
