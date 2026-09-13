@@ -7,18 +7,22 @@ export const MEMBER = { email: 'member@example.com', name: 'Max Member', passwor
 export const SITE = { name: 'HQ', address: '1 Main St', lat: 40.7128, lng: -74.006, category: 'office', status: 'active', notes: '' };
 
 /**
- * Fresh in-memory app per test, listening on one ephemeral port.
+ * Fresh in-memory app per test, listening on one ephemeral port bound to
+ * loopback.
  *
  * Handing supertest a running server rather than the app matters: given a bare
  * app it opens (and abandons) a fresh listener for every single request, and
  * under that churn a connection occasionally lands on a port another process on
  * the machine has taken, failing an unrelated test with a parse error from
- * someone else's protocol. One server per test context removes the race.
+ * someone else's protocol. One server per test context removes most of that
+ * race; binding to 127.0.0.1 rather than the wildcard address closes the
+ * remaining dual-stack ambiguity, where an ephemeral port could otherwise
+ * resolve to a listener that is not ours.
  */
 export function bootApp() {
   const config = loadConfig({ NODE_ENV: 'test', DB_PATH: ':memory:', SESSION_SECRET: 'x'.repeat(40) });
   const { app, db, deps } = createApp(config);
-  const server = app.listen(0);
+  const server = app.listen(0, '127.0.0.1');
   return {
     app,
     server,

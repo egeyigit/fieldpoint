@@ -1,0 +1,37 @@
+name: Flake hunt
+on:
+  schedule:
+    # Run nightly so the residual ~1-in-65 flake gets many chances to recur
+    # and leave a captured stack behind.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+jobs:
+  repeat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Run the suite twenty times, keeping every run's output
+        run: |
+          set -uo pipefail
+          mkdir -p flake-logs
+          status=0
+          for i in $(seq 1 20); do
+            echo "=== run $i ==="
+            if ! npm test > "flake-logs/run-$i.log" 2>&1; then
+              echo "run $i failed"
+              status=1
+            fi
+            cat "flake-logs/run-$i.log"
+          done
+          exit $status
+      - name: Upload run logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flake-logs
+          path: flake-logs/
