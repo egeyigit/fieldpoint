@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
 import { ADMIN, MEMBER, bootApp, createMember, registerAdmin } from './helpers.js';
+import { createSessionStore, sessionCookieName } from '../src/auth/session.js';
+import { openDatabase } from '../src/db/connection.js';
 
 describe('auth', () => {
   let ctx;
@@ -95,5 +97,54 @@ describe('auth', () => {
   it('returns 400 on malformed JSON', async () => {
     const response = await ctx.agent.post('/api/auth/login').set('Content-Type', 'application/json').send('{bad');
     assert.equal(response.status, 400);
+  });
+});
+
+describe('session cookie hardening', () => {
+  it('applies the __Host- prefix only in production', () => {
+    assert.equal(sessionCookieName(true), '__Host-fp_session');
+    assert.equal(sessionCookieName(false), 'fp_session');
+  });
+
+  it('rejects and deletes an idle-expired session', () => {
+    const db = openDatabase(':memory:');
+    try {
+      db.prepare(`INSERT INTO users (email, name, password_hash, role) VALUES ('a@b.c', 'A', 'x', 'admin')`).run();
+      const userId = db.prepare(`SELECT id FROM users WHERE email = 'a@b.c'`).get().id;
+      const store = createSessionStore(db, { secret: 'x'.repeat(40), ttlMs: 72 * 60 * 60 * 1000, idleMs: 1 });
+      const token = store.create(userId);
+      // Wait past the 1ms idle window.
+      const until = Date.now() + 5;
+      while (Date.now() < until) { /* spin */ }
+      assert.equal(store.resolve(token), null);
+      const id = token.split('.')[0];
+      assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions WHERE id = ?').get(id).count, 0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('slides an active session past the flat TTL up to the absolute cap', () => {
+    const db = openDatabase(':memory:');
+    try {
+      db.prepare(`INSERT INTO users (email, name, password_hash, role) VALUES ('a@b.c', 'A', 'x', 'admin')`).run();
+      const userId = db.prepare(`SELECT id FROM users WHERE email = 'a@b.c'`).get().id;
+      const ttlMs = 72 * 60 * 60 * 1000;
+      const store = createSessionStore(db, { secret: 'x'.repeat(40), ttlMs, idleMs: 8 * 60 * 60 * 1000 });
+      const token = store.create(userId);
+      const id = token.split('.')[0];
+      const before = db.prepare('SELECT expires_at AS e FROM sessions WHERE id = ?').get(id).e;
+      // Backdate the session so its original expiry has already passed, but its
+      // last activity was recent: sliding expiry must keep it alive.
+      db.prepare('UPDATE sessions SET expires_at = ?, last_seen_at = ? WHERE id = ?')
+        .run(Date.now() - 1000, Date.now(), id);
+      const user = store.resolve(token);
+      assert.equal(user.email, 'a@b.c');
+      const after = db.prepare('SELECT expires_at AS e FROM sessions WHERE id = ?').get(id).e;
+      assert.ok(after > Date.now(), 'expiry should slide forward past now');
+      assert.ok(after > before - ttlMs, 'renewed expiry reflects a fresh ttl window');
+    } finally {
+      db.close();
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { SESSION_COOKIE, parseCookies } from './session.js';
+import { SESSION_COOKIE, SESSION_COOKIE_HOST_PREFIXED, parseCookies } from './session.js';
 import { HttpError } from '../middleware/errors.js';
 
 /**
@@ -8,7 +8,8 @@ import { HttpError } from '../middleware/errors.js';
  */
 export function attachUser(sessions) {
   return (req, _res, next) => {
-    const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
+    const cookies = parseCookies(req.headers.cookie);
+    const token = cookies[SESSION_COOKIE_HOST_PREFIXED] ?? cookies[SESSION_COOKIE];
     req.sessionToken = token ?? null;
     try {
       req.user = token ? sessions.resolve(token) : null;

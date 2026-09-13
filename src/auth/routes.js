@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { hashPassword, verifyPassword } from './password.js';
-import { SESSION_COOKIE, cookieOptions } from './session.js';
+import { sessionCookieName, cookieOptions } from './session.js';
 import { requireAuth } from './middleware.js';
 import { changePasswordSchema, loginSchema, registerSchema } from './schema.js';
 import { validate } from '../middleware/validate.js';
@@ -14,6 +14,7 @@ const LOGIN_MAX_ATTEMPTS = 20;
 export function createAuthRouter({ db, users, sessions, config }) {
   const router = Router();
   const cookie = cookieOptions(config);
+  const cookieName = sessionCookieName(config.isProduction);
 
   const loginLimiter = rateLimit({
     windowMs: LOGIN_WINDOW_MS,
@@ -48,7 +49,7 @@ export function createAuthRouter({ db, users, sessions, config }) {
         details: { email, role: user.role, bootstrap: isBootstrap },
       });
       if (isBootstrap) {
-        res.cookie(SESSION_COOKIE, sessions.create(user.id), cookie);
+        res.cookie(cookieName, sessions.create(user.id), cookie);
       }
       res.status(201).json({ ok: true, user });
     } catch (error) {
@@ -66,7 +67,7 @@ export function createAuthRouter({ db, users, sessions, config }) {
         recordAudit(db, { action: 'auth.login_failed', entityType: 'user', details: { email } });
         throw new HttpError(401, 'Invalid email or password');
       }
-      res.cookie(SESSION_COOKIE, sessions.create(user.id), cookie);
+      res.cookie(cookieName, sessions.create(user.id), cookie);
       recordAudit(db, { userId: user.id, action: 'auth.login', entityType: 'user', entityId: user.id });
       res.json({ ok: true, user: publicUser(user) });
     } catch (error) {
@@ -76,7 +77,7 @@ export function createAuthRouter({ db, users, sessions, config }) {
 
   router.post('/logout', (req, res) => {
     if (req.sessionToken) sessions.destroy(req.sessionToken);
-    res.clearCookie(SESSION_COOKIE, { ...cookie, maxAge: undefined });
+    res.clearCookie(cookieName, { ...cookie, maxAge: undefined });
     res.json({ ok: true });
   });
 
@@ -93,7 +94,7 @@ export function createAuthRouter({ db, users, sessions, config }) {
       }
       users.updatePassword(user.id, await hashPassword(newPassword));
       sessions.destroyAllForUser(user.id);
-      res.cookie(SESSION_COOKIE, sessions.create(user.id), cookie);
+      res.cookie(cookieName, sessions.create(user.id), cookie);
       recordAudit(db, { userId: user.id, action: 'auth.password_change', entityType: 'user', entityId: user.id });
       res.json({ ok: true });
     } catch (error) {
