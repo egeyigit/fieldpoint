@@ -104,6 +104,7 @@ dialog h3 { margin: 0 0 4px; }
 .pin-orders-summary { opacity: 0.8; }
 .pin-orders-summary.overdue { color: var(--red); opacity: 1; }
 .pin-orders { margin: 4px 0 0; padding-left: 16px; font-size: 12px; }
+.pin-order-link { color: var(--blue); }
 
 @media (max-width: 800px) {
   .shell { grid-template-rows: 48px 45vh 1fr; grid-template-columns: 1fr; grid-template-areas: "top" "map" "side"; }

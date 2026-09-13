@@ -122,6 +122,7 @@ describe('sites', () => {
     assert.equal(listed.overdueWorkOrders, 1);
     assert.equal(listed.topOpenOrders.length, 2);
     assert.equal(listed.topOpenOrders[0].title, 'Fix leak');
+    assert.equal(listed.topOpenOrders[0].id, overdue.body.workOrder.id);
 
     // hasOverdue filter keeps sites with overdue work and drops the rest.
     assert.equal((await ctx.agent.get('/api/sites?hasOverdue=true')).body.total, 1);

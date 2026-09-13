@@ -35,14 +35,14 @@ function workOrdersPopup(site) {
   if (open === 0) return '<br><small style="opacity:.7">No open work orders</small>';
   const summary = overdue > 0 ? `${open} open · ${overdue} overdue` : `${open} open`;
   const items = (site.topOpenOrders ?? [])
-    .map((order) => `<li>${escapeHtml(order.title)}</li>`)
+    .map((order) => `<li><a href="#" class="pin-order-link" data-wo="${order.id}">${escapeHtml(order.title)}</a></li>`)
     .join('');
   const list = items ? `<ul class="pin-orders">${items}</ul>` : '';
   return `<br><small class="pin-orders-summary${overdue > 0 ? ' overdue' : ''}">${summary}</small>${list}`;
 }
 
 /** Wraps Leaflet so the rest of the UI never touches L directly. */
-export function createMapView(element, { onSelect, onAddAt }) {
+export function createMapView(element, { onSelect, onAddAt, onOpenWorkOrder }) {
   const map = L.map(element, { zoomControl: true }).setView(DEFAULT_VIEW.center, DEFAULT_VIEW.zoom);
   L.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 19 }).addTo(map);
   const layer = L.layerGroup().addTo(map);
@@ -98,6 +98,14 @@ export function createMapView(element, { onSelect, onAddAt }) {
             workOrdersPopup(site),
         );
         marker.on('click', () => onSelect(site.id));
+        marker.on('popupopen', (event) => {
+          for (const link of event.popup.getElement().querySelectorAll('.pin-order-link')) {
+            link.addEventListener('click', (clickEvent) => {
+              clickEvent.preventDefault();
+              onOpenWorkOrder?.(Number(link.dataset.wo));
+            });
+          }
+        });
         marker.addTo(layer);
         markers.set(site.id, marker);
       }
