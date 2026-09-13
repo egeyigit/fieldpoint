@@ -96,6 +96,11 @@ export function createWorkOrderRepository(db) {
         .get(...params);
       return { rows, total };
     },
+    listAll(filters) {
+      const { where, params } = buildFilter(filters);
+      const order = ORDER_BY_SORT[filters.sort] ?? ORDER_BY_SORT.due;
+      return db.prepare(`SELECT ${COLUMNS} ${FROM} ${where} ORDER BY ${order}`).all(...params);
+    },
     create(data, userId) {
       const completedAt = TERMINAL_STATUSES.has(data.status) ? nowIso() : null;
       const result = insert.run(

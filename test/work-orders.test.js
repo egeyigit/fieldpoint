@@ -133,6 +133,21 @@ describe('work orders', () => {
     assert.equal(remaining.count, 0);
   });
 
+  it('exports CSV honouring filters, with formula-injection protection and all rows', async () => {
+    await ctx.agent.post('/api/work-orders').send(newOrder({ title: '=cmd()', priority: 'urgent' }));
+    await ctx.agent.post('/api/work-orders').send(newOrder({ title: 'Done one', status: 'done' }));
+    for (let index = 0; index < 12; index += 1) {
+      await ctx.agent.post('/api/work-orders').send(newOrder({ title: `Open ${String(index).padStart(2, '0')}` }));
+    }
+    const response = await ctx.agent.get('/api/work-orders/export.csv?openOnly=true&limit=1');
+    assert.equal(response.status, 200);
+    assert.match(response.headers['content-type'], /text\/csv/);
+    assert.ok(response.text.includes(`"'=cmd()"`));
+    const dataLines = response.text.trim().split('\r\n').slice(1);
+    // The done order is excluded by openOnly; the rest come back despite limit=1.
+    assert.equal(dataLines.length, 13);
+  });
+
   it('summarises by status and priority', async () => {
     await ctx.agent.post('/api/work-orders').send(newOrder());
     await ctx.agent.post('/api/work-orders').send(newOrder({ status: 'done' }));

@@ -43,6 +43,7 @@ export function createWorkOrdersPanel({ currentUser, getSites, onFocusSite }) {
   function renderList() {
     list.replaceChildren();
     $('#wo-count').textContent = `${orders.length} work order${orders.length === 1 ? '' : 's'}`;
+    $('#wo-export-btn').href = `/api/work-orders/export.csv?${new URLSearchParams(filters())}`;
     if (orders.length === 0) {
       const empty = document.createElement('li');
       empty.className = 'empty';

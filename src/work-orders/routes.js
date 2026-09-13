@@ -10,6 +10,7 @@ import {
   updateWorkOrderSchema,
   workOrderIdSchema,
 } from './schema.js';
+import { toCsv } from './csv.js';
 
 export function createWorkOrderRouter({ db, workOrders, sites, users }) {
   const router = Router();
@@ -38,6 +39,13 @@ export function createWorkOrderRouter({ db, workOrders, sites, users }) {
 
   router.get('/summary', (_req, res) => {
     res.json({ ok: true, summary: workOrders.summary() });
+  });
+
+  router.get('/export.csv', validate(listWorkOrdersSchema, 'query'), (req, res) => {
+    const rows = workOrders.listAll(req.validated.query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="work-orders.csv"');
+    res.send(toCsv(rows));
   });
 
   router.get('/:id', validate(workOrderIdSchema, 'params'), (req, res, next) => {
