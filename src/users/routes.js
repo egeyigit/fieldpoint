@@ -4,12 +4,15 @@ import { requireAuth, requireRole } from '../auth/middleware.js';
 import { validate } from '../middleware/validate.js';
 import { HttpError } from '../middleware/errors.js';
 import { recordAudit, listAudit } from '../audit/log.js';
+import { hashPassword } from '../auth/password.js';
+import { passwordSchema } from '../auth/schema.js';
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
 const updateSchema = z
   .object({ role: z.enum(['admin', 'member']).optional(), isActive: z.boolean().optional() })
   .refine((body) => body.role !== undefined || body.isActive !== undefined, 'Nothing to update');
 const auditQuery = z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) });
+const passwordResetSchema = z.object({ newPassword: passwordSchema });
 
 export function createUserRouter({ db, users, sessions }) {
   const router = Router();
@@ -50,6 +53,31 @@ export function createUserRouter({ db, users, sessions }) {
       next(error);
     }
   });
+
+  router.post(
+    '/:id/password',
+    validate(idParam, 'params'),
+    validate(passwordResetSchema),
+    async (req, res, next) => {
+      try {
+        const { id } = req.validated.params;
+        const { newPassword } = req.validated.body;
+        const target = users.findById(id);
+        if (!target) throw new HttpError(404, 'User not found');
+        users.updatePassword(id, await hashPassword(newPassword));
+        sessions.destroyAllForUser(id);
+        recordAudit(db, {
+          userId: req.user.id,
+          action: 'user.password_reset',
+          entityType: 'user',
+          entityId: id,
+        });
+        res.json({ ok: true });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
   router.get('/audit', validate(auditQuery, 'query'), (req, res) => {
     res.json({ ok: true, entries: listAudit(db, req.validated.query) });

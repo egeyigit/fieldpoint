@@ -63,6 +63,7 @@ export const api = {
   directory: () => request('GET', '/api/users/directory'),
   listUsers: () => request('GET', '/api/users'),
   updateUser: (id, data) => request('PATCH', `/api/users/${id}`, data),
+  resetUserPassword: (id, newPassword) => request('POST', `/api/users/${id}/password`, { newPassword }),
   audit: () => request('GET', '/api/users/audit?limit=50'),
 };
 

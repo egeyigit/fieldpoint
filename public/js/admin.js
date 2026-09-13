@@ -40,7 +40,14 @@ export function createAdminPanel({ currentUser }) {
       toggle.addEventListener('change', () => update(user.id, { isActive: toggle.checked }));
       activeCell.append(toggle);
 
-      row.append(who, roleCell, activeCell);
+      const actionsCell = document.createElement('td');
+      const resetButton = document.createElement('button');
+      resetButton.type = 'button';
+      resetButton.textContent = 'Reset password';
+      resetButton.addEventListener('click', () => resetPassword(user));
+      actionsCell.append(resetButton);
+
+      row.append(who, roleCell, activeCell, actionsCell);
       tbody.append(row);
     }
   }
@@ -67,6 +74,19 @@ export function createAdminPanel({ currentUser }) {
     } catch (error) {
       errorBox.textContent = error.message;
       await refresh();
+    }
+  }
+
+  async function resetPassword(user) {
+    errorBox.textContent = '';
+    const newPassword = window.prompt(`New password for ${user.email}`);
+    if (newPassword === null) return;
+    try {
+      await api.resetUserPassword(user.id, newPassword);
+      toast('Password reset');
+      await refresh();
+    } catch (error) {
+      errorBox.textContent = error.message;
     }
   }
 
