@@ -3,6 +3,7 @@ import { requireAuth } from '../auth/middleware.js';
 import { recordAudit } from '../audit/log.js';
 import { HttpError } from '../middleware/errors.js';
 import { validate } from '../middleware/validate.js';
+import { toCsvRows } from '../sites/csv.js';
 import {
   createVisitSchema,
   listSiteVisitsSchema,
@@ -78,6 +79,23 @@ export function createSiteVisitRouter({ db, sites, visits }) {
         const query = req.validated.query;
         const { rows, total } = visits.listForSite(siteId, query);
         return res.json({ ok: true, visits: rows, total, limit: query.limit, offset: query.offset });
+      } catch (error) {
+        return next(error);
+      }
+    },
+  );
+
+  router.get(
+    '/:id/visits/export.csv',
+    validate(siteVisitParamsSchema, 'params'),
+    (req, res, next) => {
+      try {
+        const siteId = req.validated.params.id;
+        if (!sites.findVisibleById(siteId)) throw new HttpError(404, 'Site not found');
+        const rows = visits.listAllForSite(siteId);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="site-${siteId}-visits.csv"`);
+        return res.send(toCsvRows(['visitedAt', 'rating', 'note', 'userName', 'createdAt'], rows));
       } catch (error) {
         return next(error);
       }

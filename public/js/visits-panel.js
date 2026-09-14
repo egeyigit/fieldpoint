@@ -8,6 +8,12 @@ export function createVisitsPanel({ currentUser, onChanged = () => {} }) {
   const errorBox = $('#visit-error');
   let siteId = null;
 
+  const exportLink = document.createElement('a');
+  exportLink.className = 'ghost small visit-export';
+  exportLink.textContent = 'Export CSV';
+  exportLink.setAttribute('download', '');
+  form.append(exportLink);
+
   setOptions($('#visit-rating'), [[1, '1 ★'], [2, '2 ★'], [3, '3 ★'], [4, '4 ★'], [5, '5 ★']], {
     placeholder: 'No rating',
   });
@@ -15,6 +21,8 @@ export function createVisitsPanel({ currentUser, onChanged = () => {} }) {
   async function openSite(site) {
     siteId = site?.id ?? null;
     section.hidden = !site;
+    exportLink.hidden = !site;
+    if (site) exportLink.href = `/api/sites/${site.id}/visits/export.csv`;
     if (!site) return;
     form.reset();
     form.elements.visitedAt.value = todayIso();

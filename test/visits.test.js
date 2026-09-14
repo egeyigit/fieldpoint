@@ -76,6 +76,25 @@ describe('visits', () => {
     assert.equal((await ctx.agent.delete(`/api/visits/${memberVisit.id}`)).status, 204);
   });
 
+  it('exports a site\'s visits as CSV with escaped notes', async () => {
+    await ctx.agent.post(`/api/sites/${siteId}/visits`).send({
+      visitedAt: YESTERDAY, rating: 4, note: 'Fixed valve, checked "pressure"',
+    });
+    const response = await ctx.agent.get(`/api/sites/${siteId}/visits/export.csv`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers['content-type'], /text\/csv/);
+    assert.match(response.headers['content-disposition'], /attachment/);
+    const lines = response.text.trim().split('\r\n');
+    assert.equal(lines[0], 'visitedAt,rating,note,userName,createdAt');
+    assert.ok(lines[1].includes('"Fixed valve, checked ""pressure"""'));
+    assert.ok(lines[1].includes('"Ada Admin"'));
+  });
+
+  it('returns 404 when exporting visits for a soft-deleted site', async () => {
+    await ctx.agent.delete(`/api/sites/${siteId}`);
+    assert.equal((await ctx.agent.get(`/api/sites/${siteId}/visits/export.csv`)).status, 404);
+  });
+
   it('returns 404 for site-scoped access to a soft-deleted site', async () => {
     await ctx.agent.delete(`/api/sites/${siteId}`);
     assert.equal((await ctx.agent.get(`/api/sites/${siteId}/visits`)).status, 404);
