@@ -141,6 +141,31 @@ dialog h3 { margin: 0 0 4px; }
 .comments li { border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 #wo-comment-section h4 { margin: 12px 0 4px; }
 
+/* Visits and collections */
+#site-dialog { max-height: 92vh; overflow-y: auto; }
+.site-dialog-section { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 10px; }
+.site-dialog-section h4, .collection-detail h4 { margin: 0 0 8px; }
+#site-pin-form select { min-width: 150px; }
+.visit-rating { color: var(--amber); letter-spacing: 1px; margin-left: auto; }
+.visit-delete { padding: 1px 7px; margin-left: 6px; }
+.collection-detail { display: grid; gap: 10px; }
+.share-check { margin-top: 6px; }
+#collection-share-url input { min-width: 0; }
+
+/* Read-only shared collection */
+.shared-page { min-height: 100%; padding: 24px; }
+.shared-header { max-width: 1180px; margin: 0 auto 18px; }
+.shared-header h1 { margin: 18px 0 4px; }
+.shared-layout { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 1.5fr 1fr; min-height: 560px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+#shared-map { min-height: 560px; }
+.shared-list { padding: 16px; overflow-y: auto; }
+.shared-list h2 { margin-top: 0; }
+
+@media (max-width: 700px) {
+  .shared-layout { grid-template-columns: 1fr; }
+  #shared-map { min-height: 360px; }
+}
+
 /* Checklist and panel forms */
 .checklist { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
 .checklist li { display: flex; align-items: center; gap: 6px; }

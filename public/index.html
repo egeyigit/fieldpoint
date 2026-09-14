@@ -30,6 +30,7 @@
       <div class="brand"><span class="brand-dot"></span>FieldPoint</div>
       <nav class="tabs" role="tablist">
         <button class="tab active" data-tab="sites" role="tab" aria-selected="true">Sites</button>
+        <button class="tab" data-tab="collections" role="tab" aria-selected="false">Collections</button>
         <button class="tab" data-tab="work-orders" role="tab" aria-selected="false">Work orders</button>
         <button class="tab" data-tab="maintenance" role="tab" aria-selected="false">Maintenance</button>
         <button class="tab" data-tab="admin" role="tab" aria-selected="false" id="admin-tab" hidden>Admin</button>
@@ -63,6 +64,32 @@
         </div>
         <p class="hint">Tip: right-click the map to add a site at that point.</p>
         <ul id="site-list" class="site-list" aria-label="Site list"></ul>
+      </div>
+
+      <div id="panel-collections" class="panel" hidden>
+        <div class="row between">
+          <span class="muted" id="collection-count">0 collections</span>
+          <button id="collection-new" class="primary small" type="button">+ New collection</button>
+        </div>
+        <p class="error" id="collection-error" role="alert"></p>
+        <ul id="collection-list" class="site-list" aria-label="Collections"></ul>
+        <section id="collection-detail" class="collection-detail" hidden>
+          <form id="collection-edit-form" class="panel-form">
+            <label>Name<input name="name" required maxlength="80" /></label>
+            <label>Description<textarea name="description" rows="3" maxlength="500"></textarea></label>
+            <div class="row between">
+              <button id="collection-delete" type="button" class="danger small">Delete</button>
+              <button type="submit" class="primary small">Save changes</button>
+            </div>
+          </form>
+          <label class="check share-check"><input id="collection-share" type="checkbox" /> Public share link</label>
+          <div id="collection-share-url" class="row gap" hidden>
+            <input id="collection-share-input" class="mono" readonly aria-label="Public share URL" />
+            <button id="collection-copy" type="button" class="ghost small">Copy</button>
+          </div>
+          <h4>Pinned sites</h4>
+          <ul id="collection-sites" class="site-list" aria-label="Pinned sites"></ul>
+        </section>
       </div>
 
       <div id="panel-work-orders" class="panel" hidden>
@@ -168,6 +195,32 @@
           </div>
         </div>
       </form>
+      <section id="site-activity" hidden>
+        <div class="site-dialog-section">
+          <h4>Pin to collection</h4>
+          <form id="site-pin-form" class="row gap">
+            <select id="site-pin-collection" aria-label="Collection"></select>
+            <input id="site-pin-new-name" maxlength="80" placeholder="New collection name" aria-label="New collection name" hidden />
+            <button type="submit" class="ghost small">Pin</button>
+          </form>
+        </div>
+        <div class="site-dialog-section">
+          <div class="row between">
+            <h4>Visits</h4>
+            <span id="visit-count" class="muted mono"></span>
+          </div>
+          <form id="visit-form" class="panel-form">
+            <div class="row gap">
+              <label>Date<input name="visitedAt" type="date" required /></label>
+              <label>Rating<select name="rating" id="visit-rating"></select></label>
+            </div>
+            <label>Note<textarea name="note" rows="2" maxlength="2000"></textarea></label>
+            <button type="submit" class="primary small">Log a visit</button>
+          </form>
+          <p class="error" id="visit-error" role="alert"></p>
+          <ul id="visit-list" class="comments" aria-label="Site visits"></ul>
+        </div>
+      </section>
     </dialog>
 
     <!-- Work order editor -->

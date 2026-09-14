@@ -20,6 +20,11 @@ import { createTemplateRepository } from './templates/repository.js';
 import { createTemplateRouter } from './templates/routes.js';
 import { createScheduleRepository } from './maintenance/repository.js';
 import { createMaintenanceRouter } from './maintenance/routes.js';
+import { createVisitRepository } from './visits/repository.js';
+import { createSiteVisitRouter, createVisitRouter } from './visits/routes.js';
+import { createCollectionRepository } from './collections/repository.js';
+import { createCollectionRouter } from './collections/routes.js';
+import { createSharedRouter } from './shared/routes.js';
 import { requestLogger } from './middleware/logging.js';
 import { originCheck } from './middleware/security.js';
 import { errorHandler, notFoundHandler } from './middleware/errors.js';
@@ -46,8 +51,10 @@ export function createApp(config) {
   const timeLogs = createTimeLogRepository(db);
   const templates = createTemplateRepository(db);
   const schedules = createScheduleRepository(db);
+  const visits = createVisitRepository(db);
+  const collections = createCollectionRepository(db);
   const deps = {
-    db, sessions, users, sites, workOrders, checklist, timeLogs, templates, schedules, config,
+    db, sessions, users, sites, workOrders, checklist, timeLogs, templates, schedules, visits, collections, config,
   };
 
   const app = express();
@@ -107,12 +114,17 @@ export function createApp(config) {
   app.use('/api/auth', createAuthRouter(deps));
   app.use('/api/users', createUserRouter(deps));
   app.use('/api/sites', createSiteRouter(deps));
+  app.use('/api/sites', createSiteVisitRouter(deps));
+  app.use('/api/visits', createVisitRouter(deps));
+  app.use('/api/collections', createCollectionRouter(deps));
+  app.use('/api/shared', createSharedRouter(deps));
   app.use('/api/work-orders', createWorkOrderRouter(deps));
   app.use('/api/templates', createTemplateRouter(deps));
   app.use('/api/maintenance', createMaintenanceRouter(deps));
   app.use('/api', notFoundHandler);
 
   app.use('/vendor/leaflet', express.static(join(LEAFLET_DIR, 'dist'), { immutable: true, maxAge: '7d' }));
+  app.get('/shared/:token', (_req, res) => res.sendFile(join(PUBLIC_DIR, 'shared.html')));
   // max-age 0 + ETag: browsers revalidate on every load, so UI updates never go stale.
   app.use(express.static(PUBLIC_DIR, { extensions: ['html'], maxAge: 0, etag: true }));
   app.use(errorHandler);

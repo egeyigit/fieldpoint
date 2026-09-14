@@ -8,6 +8,7 @@ Built to be boring and dependable: Node.js + Express 5, SQLite through the Node 
 
 - **Map** — Leaflet + OpenStreetMap, colour-coded pins by category, dimmed pins for inactive sites, fit-to-data on load, right-click to add a site at a point, "Near me" proximity view with an accuracy circle.
 - **Sites** — create / edit / delete, assign to a user, search across name, address and notes, filter by category, status and assignee, sort by name or recency, pagination, CSV export (formula-injection safe).
+- **Visits and collections** — log dated, rated site visits; pin sites into private named collections; and enable revocable public links with unguessable tokens.
 - **Soft delete** — deleting a site hides it everywhere but keeps the row; admins see a recycle bin and can restore it.
 - **Work orders** — the field work itself: title, description, status (open / in progress / blocked / done / cancelled), priority, assignee, due date, and a comment thread. Overdue orders are flagged, `completedAt` is derived from status and never trusted from the client.
 - **Proximity search** — `nearLat` / `nearLng` / `radiusKm` with an index-friendly bounding box followed by an exact haversine check; results can be sorted by distance.
@@ -86,6 +87,15 @@ All routes return `{ ok: boolean, ... }`. Errors: `{ ok: false, error, details? 
 | PATCH | `/api/sites/:id` | user | Partial update (`PUT` is kept as an alias) |
 | DELETE | `/api/sites/:id` | admin | Soft delete |
 | POST | `/api/sites/:id/restore` | admin | Restore a soft-deleted site |
+| GET/POST | `/api/sites/:id/visits` | user | List or log visits for one visible site |
+| GET | `/api/visits` | user | Caller’s visits; `userId` for another user requires admin, plus `siteId`, `limit`, `offset` |
+| PATCH/DELETE | `/api/visits/:id` | author or admin | Update or delete a visit |
+| GET/POST | `/api/collections` | user | List the caller’s collections or create one |
+| GET/PATCH/DELETE | `/api/collections/:id` | owner or admin | Read, update or delete a collection |
+| POST/DELETE | `/api/collections/:id/sites/:siteId` | owner or admin | Pin or unpin a visible site |
+| POST/DELETE | `/api/collections/:id/share` | owner or admin | Enable or revoke a public share link |
+| GET | `/api/shared/:token` | – | Read the safe public projection of a shared collection |
+| GET | `/shared/:token` | – | Open the read-only shared collection map |
 | GET | `/api/work-orders` | user | List; `siteId`, `status`, `priority`, `assignedTo`, `openOnly`, `overdue`, `q`, `sort` |
 | GET | `/api/work-orders/summary` | user | Counts by status × priority |
 | GET/POST | `/api/work-orders`, `/api/work-orders/:id` | user | Read / create |
@@ -110,6 +120,12 @@ All routes return `{ ok: boolean, ... }`. Errors: `{ ok: false, error, details? 
 
 Site categories: `office`, `warehouse`, `client`, `job_site`, `vehicle`, `other`. Site statuses: `active`, `planned`, `inactive`.
 Work-order statuses: `open`, `in_progress`, `blocked`, `done`, `cancelled`. Priorities: `low`, `normal`, `high`, `urgent`. Due dates are calendar days (`YYYY-MM-DD`), so no timezone can shift them.
+
+### Visits and public collections
+
+Site-scoped visit listing and creation use a second authenticated router mounted at `/api/sites` after the existing sites router. Visits accept an ISO calendar date or timestamp that is not in the future, an optional 1–5 rating, and a note up to 2,000 characters. Site responses include `visitCount`, `lastVisitedAt`, and `averageRating` without changing filtering, sorting, or pagination.
+
+Collections are private to their owner unless an administrator is acting on the owner’s behalf. Sharing mints one 24-byte base64url token and remains idempotent until sharing is disabled; disabling it immediately invalidates the old URL. The public response only includes the collection presentation fields and visible-site map fields. Demo seeding creates “Northeast operations” at `/shared/ZmllbGRwb2ludC1kZW1vLXNoYXJl`.
 
 ## Development
 

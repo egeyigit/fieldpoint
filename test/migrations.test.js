@@ -46,7 +46,10 @@ describe('migrations', () => {
   it('build every table on a fresh database', () => {
     const db = openDatabase(':memory:');
     try {
-      for (const table of ['users', 'sessions', 'sites', 'audit_log', 'work_orders', 'work_order_comments']) {
+      for (const table of [
+        'users', 'sessions', 'sites', 'audit_log', 'work_orders', 'work_order_comments',
+        'site_visits', 'collections', 'collection_sites',
+      ]) {
         assert.ok(tableNames(db).includes(table), `missing ${table}`);
       }
       const version = db.prepare(`SELECT value FROM schema_meta WHERE key = 'version'`).get().value;
@@ -54,6 +57,10 @@ describe('migrations', () => {
     } finally {
       db.close();
     }
+  });
+
+  it('exposes migration version 5 as the latest schema', () => {
+    assert.equal(LATEST_VERSION, 5);
   });
 
   it('are idempotent: a second run applies nothing', () => {

@@ -3,11 +3,18 @@ import { boundingBox, haversineKm } from './geo.js';
 const COLUMNS = `s.id, s.name, s.address, s.lat, s.lng, s.category, s.status, s.notes,
   s.assigned_to AS assignedTo, s.created_by AS createdBy, s.updated_by AS updatedBy,
   s.deleted_at AS deletedAt, s.created_at AS createdAt, s.updated_at AS updatedAt,
-  cu.name AS createdByName, uu.name AS updatedByName, au.name AS assignedToName`;
+  cu.name AS createdByName, uu.name AS updatedByName, au.name AS assignedToName,
+  COALESCE(va.visit_count, 0) AS visitCount, va.last_visited_at AS lastVisitedAt,
+  va.average_rating AS averageRating`;
 const FROM = `FROM sites s
   LEFT JOIN users cu ON cu.id = s.created_by
   LEFT JOIN users uu ON uu.id = s.updated_by
-  LEFT JOIN users au ON au.id = s.assigned_to`;
+  LEFT JOIN users au ON au.id = s.assigned_to
+  LEFT JOIN (
+    SELECT site_id, COUNT(*) AS visit_count, MAX(visited_at) AS last_visited_at,
+           AVG(rating) AS average_rating
+    FROM site_visits GROUP BY site_id
+  ) va ON va.site_id = s.id`;
 
 const UPDATABLE = ['name', 'address', 'lat', 'lng', 'category', 'status', 'notes', 'assignedTo'];
 const COLUMN_BY_FIELD = { assignedTo: 'assigned_to' };

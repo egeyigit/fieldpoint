@@ -4,6 +4,8 @@ import { createWorkOrderRepository } from '../work-orders/repository.js';
 import { createChecklistRepository } from '../work-orders/checklist.js';
 import { createTemplateRepository } from '../templates/repository.js';
 import { createScheduleRepository, addDays, todayIso } from '../maintenance/repository.js';
+import { createVisitRepository } from '../visits/repository.js';
+import { createCollectionRepository } from '../collections/repository.js';
 import { hashPassword } from '../auth/password.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -65,6 +67,19 @@ export const DEMO_SCHEDULES = Object.freeze([
   { site: 'Newark Distribution Center', template: 'Generator service', title: 'Monthly generator service', intervalDays: 30, dueInDays: -2, priority: 'high' },
 ]);
 
+export const DEMO_VISITS = Object.freeze([
+  { site: 'Boston HQ', user: 'admin@fieldpoint.local', daysAgo: 2, rating: 5, note: 'Quarterly walkthrough completed.' },
+  { site: 'Newark Distribution Center', user: 'ops@fieldpoint.local', daysAgo: 5, rating: 4, note: 'Checked loading dock access.' },
+  { site: 'Providence Client — Harbor Corp', user: 'admin@fieldpoint.local', daysAgo: 9, rating: null, note: 'Met the client facilities lead.' },
+]);
+
+export const DEMO_COLLECTION = Object.freeze({
+  name: 'Northeast operations',
+  description: 'Key sites for the Northeast field team.',
+  shareToken: 'ZmllbGRwb2ludC1kZW1vLXNoYXJl',
+  sites: ['Boston HQ', 'Newark Distribution Center', 'Providence Client — Harbor Corp'],
+});
+
 export async function seedDemo(db, { log = () => {} } = {}) {
   const users = createUserRepository(db);
   const sites = createSiteRepository(db);
@@ -72,7 +87,9 @@ export async function seedDemo(db, { log = () => {} } = {}) {
   const templates = createTemplateRepository(db);
   const schedules = createScheduleRepository(db);
   const checklist = createChecklistRepository(db);
-  const created = { users: [], sites: [], workOrders: [], templates: [], schedules: [] };
+  const visits = createVisitRepository(db);
+  const collections = createCollectionRepository(db);
+  const created = { users: [], sites: [], workOrders: [], templates: [], schedules: [], visits: [], collections: [] };
   let adminId = null;
 
   for (const user of DEMO_USERS) {
@@ -153,6 +170,32 @@ export async function seedDemo(db, { log = () => {} } = {}) {
   const firstOrder = workOrders.list({ limit: 1, offset: 0, sort: 'due' }).rows[0];
   if (firstOrder && checklist.progressFor(firstOrder.id).total === 0) {
     checklist.addMany(firstOrder.id, ['Isolate the door', 'Replace the motor', 'Test the safety edge']);
+  }
+
+  const existingVisitNotes = new Set(
+    db.prepare('SELECT note FROM site_visits WHERE note != ?').all('').map((row) => row.note),
+  );
+  for (const visit of DEMO_VISITS) {
+    const siteId = siteIdByName.get(visit.site);
+    const user = users.findByEmail(visit.user);
+    if (!siteId || !user || existingVisitNotes.has(visit.note)) continue;
+    visits.create(siteId, user.id, {
+      visitedAt: dueInDays(-visit.daysAgo), rating: visit.rating, note: visit.note,
+    });
+    created.visits.push(visit.note);
+    log(`created visit: ${visit.site}`);
+  }
+
+  let demoCollection = collections.listForOwner(adminId).find((row) => row.name === DEMO_COLLECTION.name);
+  if (!demoCollection) {
+    demoCollection = collections.create(adminId, DEMO_COLLECTION);
+    demoCollection = collections.setShareToken(demoCollection.id, DEMO_COLLECTION.shareToken);
+    created.collections.push(demoCollection.name);
+    log(`created collection: ${demoCollection.name}`);
+  }
+  for (const siteName of DEMO_COLLECTION.sites) {
+    const siteId = siteIdByName.get(siteName);
+    if (siteId) collections.pin(demoCollection.id, siteId, adminId);
   }
   return created;
 }

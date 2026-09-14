@@ -9,9 +9,11 @@ import { $, debounce, formValues, toast } from './ui.js';
  * any of that code is even fetched.
  */
 async function loadWorkspace() {
-  const [map, sites, workOrders, maintenance, admin] = await Promise.all([
+  const [map, sites, visits, collections, workOrders, maintenance, admin] = await Promise.all([
     import('./map.js'),
     import('./sites-panel.js'),
+    import('./visits-panel.js'),
+    import('./collections-panel.js'),
     import('./work-orders-panel.js'),
     import('./maintenance-panel.js'),
     import('./admin.js'),
@@ -19,6 +21,8 @@ async function loadWorkspace() {
   return {
     createMapView: map.createMapView,
     createSitesPanel: sites.createSitesPanel,
+    createVisitsPanel: visits.createVisitsPanel,
+    createCollectionsPanel: collections.createCollectionsPanel,
     createWorkOrdersPanel: workOrders.createWorkOrdersPanel,
     createMaintenancePanel: maintenance.createMaintenancePanel,
     createAdminPanel: admin.createAdminPanel,
@@ -44,15 +48,34 @@ async function showApp(user) {
   $('#user-label').textContent = `${user.email} · ${user.role}`;
   $('#admin-tab').hidden = user.role !== 'admin';
 
-  const { createMapView, createSitesPanel, createWorkOrdersPanel, createMaintenancePanel, createAdminPanel } =
+  const {
+    createMapView, createSitesPanel, createVisitsPanel, createCollectionsPanel,
+    createWorkOrdersPanel, createMaintenancePanel, createAdminPanel,
+  } =
     await loadWorkspace();
 
   let sitesPanel = null;
+  let visitsPanel = null;
+  let collectionsPanel = null;
   const mapView = createMapView($('#map'), {
     onSelect: (id) => sitesPanel.select(id),
     onAddAt: (lat, lng) => sitesPanel.openEditor(null, { lat: lat.toFixed(6), lng: lng.toFixed(6) }),
   });
-  sitesPanel = createSitesPanel({ mapView, currentUser: user });
+  sitesPanel = createSitesPanel({
+    mapView,
+    currentUser: user,
+    onOpenSite: (site) => {
+      visitsPanel?.openSite(site);
+      collectionsPanel?.openSite(site);
+    },
+  });
+  visitsPanel = createVisitsPanel({ currentUser: user, onChanged: () => sitesPanel.refresh() });
+  collectionsPanel = createCollectionsPanel({
+    onFocusSite: (siteId) => {
+      showTab('sites');
+      sitesPanel.select(siteId);
+    },
+  });
   const maintenancePanel = createMaintenancePanel({
     currentUser: user,
     getSites: () => sitesPanel.getSites(),
@@ -74,6 +97,7 @@ async function showApp(user) {
       tab.setAttribute('aria-selected', String(tab.dataset.tab === name));
     }
     $('#panel-sites').hidden = name !== 'sites';
+    $('#panel-collections').hidden = name !== 'collections';
     $('#panel-work-orders').hidden = name !== 'work-orders';
     $('#panel-maintenance').hidden = name !== 'maintenance';
     $('#panel-admin').hidden = name !== 'admin';
@@ -87,6 +111,7 @@ async function showApp(user) {
   for (const tab of document.querySelectorAll('.tab')) {
     tab.addEventListener('click', async () => {
       showTab(tab.dataset.tab);
+      if (tab.dataset.tab === 'collections') await collectionsPanel.refresh();
       if (tab.dataset.tab === 'work-orders') await workOrdersPanel.refresh();
       if (tab.dataset.tab === 'maintenance') await maintenancePanel.refresh();
       if (tab.dataset.tab === 'admin' && adminPanel) await adminPanel.refresh();
@@ -100,6 +125,7 @@ async function showApp(user) {
 
   setTimeout(() => mapView.invalidate(), 0);
   await sitesPanel.refresh({ fit: true });
+  await collectionsPanel.refresh({ preserveDetail: false });
   // Templates feed the work-order dialog's picker, so load them up front.
   await maintenancePanel.refresh();
 }

@@ -6,7 +6,7 @@ const PAGE_SIZE = 1000;
 const MAX_SITES = 10000;
 
 /** Sidebar list + editor dialog for sites. Map is notified through callbacks. */
-export function createSitesPanel({ mapView, currentUser }) {
+export function createSitesPanel({ mapView, currentUser, onOpenSite = () => {} }) {
   const list = $('#site-list');
   const dialog = $('#site-dialog');
   const form = $('#site-form');
@@ -175,7 +175,13 @@ export function createSitesPanel({ mapView, currentUser }) {
         toast(`Showing ${sites.length} of ${result.total} sites — narrow the filters to see the rest`, true);
       }
       renderList();
-      mapView.render(sites.filter((site) => !site.deletedAt));
+      mapView.render(sites.filter((site) => !site.deletedAt).map((site) => ({
+        ...site,
+        assignedToName: [
+          site.assignedToName,
+          site.visitCount ? `${site.visitCount} visit${site.visitCount === 1 ? '' : 's'}` : null,
+        ].filter(Boolean).join(' · '),
+      })));
       if (fit) mapView.fitAll(sites);
       await renderStats();
     } catch (error) {
@@ -201,6 +207,7 @@ export function createSitesPanel({ mapView, currentUser }) {
       ? `Updated ${relativeTime(site.updatedAt)} by ${site.updatedByName ?? 'unknown'}`
       : '';
     $('#site-meta').title = site ? absoluteTime(site.updatedAt) : '';
+    onOpenSite(site);
     dialog.showModal();
   }
 
