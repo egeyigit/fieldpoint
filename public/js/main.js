@@ -106,13 +106,24 @@ async function showApp(user) {
 
 async function boot() {
   const authForm = $('#auth-form');
+  const submitBtn = $('#auth-submit');
+  let submitting = false;
   authForm.addEventListener('submit', async (event) => {
     event.preventDefault();
+    // A slow connection tempts a second click; one in-flight request is enough.
+    if (submitting) return;
     const errorBox = $('#auth-error');
     errorBox.textContent = '';
     const values = formValues(authForm);
+    const isRegister = authForm.dataset.mode === 'register';
+    const inputs = authForm.querySelectorAll('input');
+    const restoreLabel = submitBtn.textContent;
+    submitting = true;
+    submitBtn.disabled = true;
+    for (const input of inputs) input.readOnly = true;
+    submitBtn.textContent = isRegister ? 'Creating account…' : 'Signing in…';
     try {
-      if (authForm.dataset.mode === 'register') {
+      if (isRegister) {
         await api.register(values);
       } else {
         await api.login({ email: values.email, password: values.password });
@@ -120,6 +131,10 @@ async function boot() {
       window.location.reload();
     } catch (error) {
       errorBox.textContent = error.message;
+      submitting = false;
+      submitBtn.disabled = false;
+      for (const input of inputs) input.readOnly = false;
+      submitBtn.textContent = restoreLabel;
     }
   });
 
