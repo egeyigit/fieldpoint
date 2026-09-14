@@ -67,6 +67,16 @@ export function createSiteRepository(db) {
       clauses.push('s.assigned_to = ?');
       params.push(filters.assignedTo);
     }
+    if (filters.visited === 'never') {
+      clauses.push('va.last_visited_at IS NULL');
+    } else if (filters.visited === '30d' || filters.visited === '90d') {
+      const days = filters.visited === '30d' ? 30 : 90;
+      clauses.push(`va.last_visited_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-${days} days')`);
+    }
+    if (filters.minRating !== undefined) {
+      clauses.push('va.average_rating >= ?');
+      params.push(filters.minRating);
+    }
     if (filters.north !== undefined) {
       clauses.push('s.lat BETWEEN ? AND ? AND s.lng BETWEEN ? AND ?');
       params.push(

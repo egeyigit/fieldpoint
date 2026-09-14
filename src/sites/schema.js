@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const SITE_CATEGORIES = ['office', 'warehouse', 'client', 'job_site', 'vehicle', 'other'];
 export const SITE_STATUSES = ['active', 'inactive', 'planned'];
 export const SITE_SORTS = ['name', 'created', 'updated', 'distance'];
+export const VISITED_FILTERS = ['never', '30d', '90d'];
 
 const MAX_NAME = 120;
 const MAX_ADDRESS = 300;
@@ -44,6 +45,8 @@ export const listSitesSchema = z
     category: z.enum(SITE_CATEGORIES).optional(),
     status: z.enum(SITE_STATUSES).optional(),
     assignedTo: z.coerce.number().int().positive().optional(),
+    visited: z.enum(VISITED_FILTERS).optional(),
+    minRating: z.coerce.number().int().min(1).max(5).optional(),
     // Map viewport filter. All four are required together.
     north: z.coerce.number().min(-90).max(90).optional(),
     south: z.coerce.number().min(-90).max(90).optional(),

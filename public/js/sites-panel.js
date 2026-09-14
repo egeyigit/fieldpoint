@@ -18,6 +18,16 @@ export function createSitesPanel({ mapView, currentUser, onOpenSite = () => {} }
 
   setOptions($('#filter-category'), Object.entries(CATEGORIES).map(([key, value]) => [key, value.label]), { placeholder: 'All categories' });
   setOptions($('#filter-status'), Object.entries(STATUSES), { placeholder: 'All statuses' });
+  setOptions(
+    $('#filter-visited'),
+    [['never', 'Never'], ['30d', 'Last 30 days'], ['90d', 'Last 90 days']],
+    { placeholder: 'Any visit' },
+  );
+  setOptions(
+    $('#filter-min-rating'),
+    [1, 2, 3, 4, 5].map((value) => [String(value), `${value}+ stars`]),
+    { placeholder: 'Any rating' },
+  );
   setOptions($('#site-sort'), Object.entries(SITE_SORTS), { selected: 'name' });
   setOptions($('#form-category'), Object.entries(CATEGORIES).map(([key, value]) => [key, value.label]));
   setOptions($('#form-status'), Object.entries(STATUSES));
@@ -28,9 +38,13 @@ export function createSitesPanel({ mapView, currentUser, onOpenSite = () => {} }
     const q = $('#search').value.trim();
     const category = $('#filter-category').value;
     const status = $('#filter-status').value;
+    const visited = $('#filter-visited').value;
+    const minRating = $('#filter-min-rating').value;
     if (q) params.q = q;
     if (category) params.category = category;
     if (status) params.status = status;
+    if (visited) params.visited = visited;
+    if (minRating) params.minRating = minRating;
     if ($('#filter-mine').checked) params.assignedTo = currentUser.id;
     if (currentUser.role === 'admin' && $('#show-deleted').checked) params.includeDeleted = 'true';
     if (nearMe) {
@@ -299,6 +313,8 @@ export function createSitesPanel({ mapView, currentUser, onOpenSite = () => {} }
   $('#add-btn').addEventListener('click', () => openEditor());
   $('#near-me').addEventListener('click', toggleNearMe);
   $('#site-sort').addEventListener('change', () => refresh());
+  $('#filter-visited').addEventListener('change', () => refresh());
+  $('#filter-min-rating').addEventListener('change', () => refresh());
   $('#filter-mine').addEventListener('change', () => refresh());
   $('#show-deleted').addEventListener('change', () => refresh());
 

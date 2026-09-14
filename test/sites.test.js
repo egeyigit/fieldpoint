@@ -61,6 +61,33 @@ describe('sites', () => {
     assert.equal((await ctx.agent.get('/api/sites?category=nope')).status, 400);
   });
 
+  it('filters by visit activity and minimum rating', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const old = new Date(Date.now() - 60 * 86_400_000).toISOString().slice(0, 10);
+    const unvisited = (await ctx.agent.post('/api/sites').send({ ...SITE, name: 'Never' })).body.site.id;
+    const recent = (await ctx.agent.post('/api/sites').send({ ...SITE, name: 'Recent' })).body.site.id;
+    const stale = (await ctx.agent.post('/api/sites').send({ ...SITE, name: 'Stale' })).body.site.id;
+    await ctx.agent.post(`/api/sites/${recent}/visits`).send({ visitedAt: today, rating: 5 });
+    await ctx.agent.post(`/api/sites/${stale}/visits`).send({ visitedAt: old, rating: 2 });
+
+    const never = await ctx.agent.get('/api/sites?visited=never');
+    assert.equal(never.body.total, 1);
+    assert.equal(never.body.sites[0].id, unvisited);
+
+    const last30 = await ctx.agent.get('/api/sites?visited=30d');
+    assert.equal(last30.body.total, 1);
+    assert.equal(last30.body.sites[0].id, recent);
+
+    assert.equal((await ctx.agent.get('/api/sites?visited=90d')).body.total, 2);
+
+    const rated = await ctx.agent.get('/api/sites?minRating=3');
+    assert.equal(rated.body.total, 1);
+    assert.equal(rated.body.sites[0].id, recent);
+
+    assert.equal((await ctx.agent.get('/api/sites?visited=forever')).status, 400);
+    assert.equal((await ctx.agent.get('/api/sites?minRating=6')).status, 400);
+  });
+
   it('paginates', async () => {
     for (let index = 0; index < 5; index += 1) {
       await ctx.agent.post('/api/sites').send({ ...SITE, name: `Site ${index}` });
