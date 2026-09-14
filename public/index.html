@@ -33,6 +33,7 @@
         <button class="tab" data-tab="collections" role="tab" aria-selected="false">Collections</button>
         <button class="tab" data-tab="work-orders" role="tab" aria-selected="false">Work orders</button>
         <button class="tab" data-tab="maintenance" role="tab" aria-selected="false">Maintenance</button>
+        <button class="tab" data-tab="activity" role="tab" aria-selected="false" id="activity-tab" hidden>Activity</button>
         <button class="tab" data-tab="admin" role="tab" aria-selected="false" id="admin-tab" hidden>Admin</button>
       </nav>
       <div class="user-box">
@@ -141,6 +142,15 @@
           <label>Checklist (one per line)<textarea name="items" rows="4" placeholder="Check gauge pressure&#10;Check tamper seal"></textarea></label>
           <button type="submit" class="primary small">Create template</button>
         </form>
+      </div>
+
+      <div id="panel-activity" class="panel" hidden>
+        <div class="row between">
+          <span class="muted" id="activity-count">0 visits</span>
+        </div>
+        <p class="error" id="activity-error" role="alert"></p>
+        <ul id="activity-list" class="comments" aria-label="Recent visits"></ul>
+        <button id="activity-more" class="ghost small" type="button" hidden>Load more</button>
       </div>
 
       <div id="panel-admin" class="panel" hidden>

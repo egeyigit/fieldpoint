@@ -29,6 +29,7 @@ export const visitIdSchema = z.object({ id: z.coerce.number().int().positive() }
 export const siteVisitParamsSchema = z.object({ id: z.coerce.number().int().positive() });
 
 export const listVisitsSchema = z.object({
+  scope: z.enum(['mine', 'all']).optional(),
   userId: z.coerce.number().int().positive().optional(),
   siteId: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(100),

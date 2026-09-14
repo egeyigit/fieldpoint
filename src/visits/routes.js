@@ -19,6 +19,13 @@ export function createVisitRouter({ db, visits }) {
   router.get('/', validate(listVisitsSchema, 'query'), (req, res, next) => {
     try {
       const query = req.validated.query;
+      if (query.scope === 'all') {
+        if (req.user.role !== 'admin') {
+          throw new HttpError(403, 'Only administrators can read visits across all sites');
+        }
+        const { rows, total } = visits.listAll(query);
+        return res.json({ ok: true, visits: rows, total, limit: query.limit, offset: query.offset });
+      }
       const userId = query.userId ?? req.user.id;
       if (userId !== req.user.id && req.user.role !== 'admin') {
         throw new HttpError(403, 'Only administrators can read another user\'s visits');

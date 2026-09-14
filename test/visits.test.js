@@ -63,6 +63,30 @@ describe('visits', () => {
     assert.equal((await ctx.agent.get(`/api/visits?userId=${member.id}`)).body.total, 1);
   });
 
+  it('lists all visits newest-first for admins with paging and forbids members', async () => {
+    const memberAgent = await createMember(ctx.agent, ctx.server);
+    const otherSite = (await ctx.agent.post('/api/sites').send({ ...SITE, name: 'Depot' })).body.site.id;
+    await ctx.agent.post(`/api/sites/${siteId}/visits`).send({ visitedAt: '2026-01-01', note: 'Oldest' });
+    await memberAgent.post(`/api/sites/${otherSite}/visits`).send({ visitedAt: YESTERDAY, note: 'Newest' });
+
+    assert.equal((await memberAgent.get('/api/visits?scope=all')).status, 403);
+
+    const all = await ctx.agent.get('/api/visits?scope=all');
+    assert.equal(all.status, 200);
+    assert.equal(all.body.total, 2);
+    assert.equal(all.body.visits[0].note, 'Newest');
+    assert.equal(all.body.visits[0].siteName, 'Depot');
+    assert.equal(all.body.visits[0].userName, 'Max Member');
+
+    const firstPage = await ctx.agent.get('/api/visits?scope=all&limit=1&offset=0');
+    assert.equal(firstPage.body.total, 2);
+    assert.equal(firstPage.body.visits.length, 1);
+    assert.equal(firstPage.body.visits[0].note, 'Newest');
+    const secondPage = await ctx.agent.get('/api/visits?scope=all&limit=1&offset=1');
+    assert.equal(secondPage.body.visits.length, 1);
+    assert.equal(secondPage.body.visits[0].note, 'Oldest');
+  });
+
   it('allows only the author or an administrator to update and delete', async () => {
     const memberAgent = await createMember(ctx.agent, ctx.server);
     const adminVisit = (await ctx.agent.post(`/api/sites/${siteId}/visits`).send({ visitedAt: YESTERDAY })).body.visit;

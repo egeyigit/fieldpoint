@@ -19,6 +19,15 @@ export function createVisitRepository(db) {
     `SELECT COUNT(*) AS total FROM site_visits v
      JOIN sites s ON s.id = v.site_id AND s.deleted_at IS NULL WHERE v.site_id = ?`,
   );
+  const listAll = db.prepare(
+    `SELECT ${COLUMNS} ${FROM}
+     WHERE s.deleted_at IS NULL
+     ORDER BY v.visited_at DESC, v.id DESC LIMIT ? OFFSET ?`,
+  );
+  const countAll = db.prepare(
+    `SELECT COUNT(*) AS total FROM site_visits v
+     JOIN sites s ON s.id = v.site_id WHERE s.deleted_at IS NULL`,
+  );
   const listForUser = db.prepare(
     `SELECT ${COLUMNS} ${FROM}
      WHERE v.user_id = ? AND s.deleted_at IS NULL AND (? IS NULL OR v.site_id = ?)
@@ -47,6 +56,9 @@ export function createVisitRepository(db) {
     },
     listForSite(siteId, { limit, offset }) {
       return { rows: listForSite.all(siteId, limit, offset), total: countForSite.get(siteId).total };
+    },
+    listAll({ limit, offset }) {
+      return { rows: listAll.all(limit, offset), total: countAll.get().total };
     },
     listForUser(userId, { siteId = null, limit, offset }) {
       return {

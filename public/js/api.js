@@ -42,6 +42,7 @@ export const api = {
   restoreSite: (id) => request('POST', `/api/sites/${id}/restore`),
   listSiteVisits: (siteId, params = {}) => request('GET', `/api/sites/${siteId}/visits?${new URLSearchParams(params)}`),
   listVisits: (params = {}) => request('GET', `/api/visits?${new URLSearchParams(params)}`),
+  listAllVisits: (params = {}) => request('GET', `/api/visits?${new URLSearchParams({ scope: 'all', ...params })}`),
   createVisit: (siteId, data) => request('POST', `/api/sites/${siteId}/visits`, data),
   updateVisit: (id, data) => request('PATCH', `/api/visits/${id}`, data),
   deleteVisit: (id) => request('DELETE', `/api/visits/${id}`),

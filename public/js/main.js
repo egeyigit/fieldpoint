@@ -9,13 +9,14 @@ import { $, debounce, formValues, toast } from './ui.js';
  * any of that code is even fetched.
  */
 async function loadWorkspace() {
-  const [map, sites, visits, collections, workOrders, maintenance, admin] = await Promise.all([
+  const [map, sites, visits, collections, workOrders, maintenance, activity, admin] = await Promise.all([
     import('./map.js'),
     import('./sites-panel.js'),
     import('./visits-panel.js'),
     import('./collections-panel.js'),
     import('./work-orders-panel.js'),
     import('./maintenance-panel.js'),
+    import('./activity-panel.js'),
     import('./admin.js'),
   ]);
   return {
@@ -25,6 +26,7 @@ async function loadWorkspace() {
     createCollectionsPanel: collections.createCollectionsPanel,
     createWorkOrdersPanel: workOrders.createWorkOrdersPanel,
     createMaintenancePanel: maintenance.createMaintenancePanel,
+    createActivityPanel: activity.createActivityPanel,
     createAdminPanel: admin.createAdminPanel,
   };
 }
@@ -46,11 +48,12 @@ async function showApp(user) {
   $('#auth-view').hidden = true;
   $('#app-view').hidden = false;
   $('#user-label').textContent = `${user.email} · ${user.role}`;
+  $('#activity-tab').hidden = user.role !== 'admin';
   $('#admin-tab').hidden = user.role !== 'admin';
 
   const {
     createMapView, createSitesPanel, createVisitsPanel, createCollectionsPanel,
-    createWorkOrdersPanel, createMaintenancePanel, createAdminPanel,
+    createWorkOrdersPanel, createMaintenancePanel, createActivityPanel, createAdminPanel,
   } =
     await loadWorkspace();
 
@@ -89,6 +92,14 @@ async function showApp(user) {
       sitesPanel.select(siteId);
     },
   });
+  const activityPanel = user.role === 'admin'
+    ? createActivityPanel({
+        onFocusSite: (siteId) => {
+          showTab('sites');
+          sitesPanel.select(siteId);
+        },
+      })
+    : null;
   const adminPanel = user.role === 'admin' ? createAdminPanel({ currentUser: user }) : null;
 
   function showTab(name) {
@@ -100,6 +111,7 @@ async function showApp(user) {
     $('#panel-collections').hidden = name !== 'collections';
     $('#panel-work-orders').hidden = name !== 'work-orders';
     $('#panel-maintenance').hidden = name !== 'maintenance';
+    $('#panel-activity').hidden = name !== 'activity';
     $('#panel-admin').hidden = name !== 'admin';
   }
 
@@ -114,6 +126,7 @@ async function showApp(user) {
       if (tab.dataset.tab === 'collections') await collectionsPanel.refresh();
       if (tab.dataset.tab === 'work-orders') await workOrdersPanel.refresh();
       if (tab.dataset.tab === 'maintenance') await maintenancePanel.refresh();
+      if (tab.dataset.tab === 'activity' && activityPanel) await activityPanel.refresh();
       if (tab.dataset.tab === 'admin' && adminPanel) await adminPanel.refresh();
     });
   }
