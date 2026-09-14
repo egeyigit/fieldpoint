@@ -64,6 +64,12 @@ export function createVisitsPanel({ currentUser, onChanged = () => {} }) {
       heading.append(rating);
     }
     if (visit.userId === currentUser.id || currentUser.role === 'admin') {
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'ghost small visit-edit';
+      edit.textContent = 'Edit';
+      edit.addEventListener('click', () => item.replaceWith(renderEditForm(visit)));
+      heading.append(edit);
       const remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'ghost small visit-delete';
@@ -77,6 +83,63 @@ export function createVisitsPanel({ currentUser, onChanged = () => {} }) {
       note.textContent = visit.note;
       item.append(note);
     }
+    return item;
+  }
+
+  function renderEditForm(visit) {
+    const item = document.createElement('li');
+    const editForm = document.createElement('form');
+    editForm.className = 'visit-edit-form';
+
+    const dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.name = 'visitedAt';
+    dateInput.value = String(visit.visitedAt).slice(0, 10);
+    dateInput.required = true;
+
+    const ratingSelect = document.createElement('select');
+    ratingSelect.name = 'rating';
+    setOptions(ratingSelect, [[1, '1 ★'], [2, '2 ★'], [3, '3 ★'], [4, '4 ★'], [5, '5 ★']], {
+      placeholder: 'No rating',
+    });
+    ratingSelect.value = visit.rating ? String(visit.rating) : '';
+
+    const noteInput = document.createElement('textarea');
+    noteInput.name = 'note';
+    noteInput.value = visit.note ?? '';
+
+    const actions = document.createElement('div');
+    actions.className = 'row';
+    const save = document.createElement('button');
+    save.type = 'submit';
+    save.className = 'small';
+    save.textContent = 'Save';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'ghost small';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', () => item.replaceWith(renderVisit(visit)));
+    actions.append(save, cancel);
+
+    editForm.append(dateInput, ratingSelect, noteInput, actions);
+    editForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const values = formValues(editForm);
+      try {
+        await api.updateVisit(visit.id, {
+          visitedAt: values.visitedAt,
+          rating: values.rating ? Number(values.rating) : null,
+          note: values.note.trim(),
+        });
+        toast('Visit updated');
+        await refresh();
+        await onChanged();
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+
+    item.append(editForm);
     return item;
   }
 
