@@ -1,10 +1,29 @@
 import { api } from './api.js';
-import { createMapView } from './map.js';
-import { createSitesPanel } from './sites-panel.js';
-import { createWorkOrdersPanel } from './work-orders-panel.js';
-import { createMaintenancePanel } from './maintenance-panel.js';
-import { createAdminPanel } from './admin.js';
 import { $, debounce, formValues, toast } from './ui.js';
+
+/**
+ * The map and the panels are loaded only once someone is signed in. Keeping
+ * them out of this module's static import graph means a failure in any of
+ * them — Leaflet not served, a panel throwing at import — can no longer take
+ * the sign-in form down with it: the form's submit handler is attached before
+ * any of that code is even fetched.
+ */
+async function loadWorkspace() {
+  const [map, sites, workOrders, maintenance, admin] = await Promise.all([
+    import('./map.js'),
+    import('./sites-panel.js'),
+    import('./work-orders-panel.js'),
+    import('./maintenance-panel.js'),
+    import('./admin.js'),
+  ]);
+  return {
+    createMapView: map.createMapView,
+    createSitesPanel: sites.createSitesPanel,
+    createWorkOrdersPanel: workOrders.createWorkOrdersPanel,
+    createMaintenancePanel: maintenance.createMaintenancePanel,
+    createAdminPanel: admin.createAdminPanel,
+  };
+}
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -24,6 +43,9 @@ async function showApp(user) {
   $('#app-view').hidden = false;
   $('#user-label').textContent = `${user.email} · ${user.role}`;
   $('#admin-tab').hidden = user.role !== 'admin';
+
+  const { createMapView, createSitesPanel, createWorkOrdersPanel, createMaintenancePanel, createAdminPanel } =
+    await loadWorkspace();
 
   let sitesPanel = null;
   const mapView = createMapView($('#map'), {
